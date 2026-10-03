@@ -116,9 +116,11 @@ class CachingResolver:
 
     # -- main entry point ---------------------------------------------------
 
-    def resolve(self, domain, qtype):
+    def resolve(self, domain, record_type=RecordType.A):
+        # Same signature as IterativeResolver.resolve (record_type defaults to A),
+        # so this class can be dropped in anywhere the plain resolver is used.
         # Same normalizer as the resolver, so "GitHub.com." == "github.com"
-        key = (normalize_name(domain), RecordType(qtype))
+        key = (normalize_name(domain), RecordType(record_type))
         started = time.perf_counter()
         now = self.clock()
 
@@ -143,7 +145,7 @@ class CachingResolver:
         # ---- MISS ----
         self.misses += 1
         try:
-            result = self.resolver.resolve(domain, qtype)
+            result = self.resolver.resolve(domain, record_type)
         except Exception:
             # ResolutionError, HopLimitExceeded, ValueError ... never cached.
             # "We couldn't find out" is not "it doesn't exist".

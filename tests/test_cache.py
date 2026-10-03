@@ -54,7 +54,7 @@ class StubResolver:
         self.outcomes = list(outcomes)
         self.calls = 0
 
-    def resolve(self, domain, qtype):
+    def resolve(self, domain, record_type=RecordType.A):
         self.calls += 1
         outcome = self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]
         if isinstance(outcome, Exception):
@@ -112,6 +112,14 @@ def test_second_lookup_is_a_hit_and_skips_the_resolver():
     cache.resolve("example.com", RecordType.A)
     assert stub.calls == 1
     assert cache.hits == 1 and cache.misses == 1
+
+
+def test_record_type_defaults_to_A_and_keyword_works():
+    # same call style as IterativeResolver.resolve(domain, record_type=A)
+    cache, stub, _ = make_cache(a_result())
+    cache.resolve("example.com")
+    cache.resolve("example.com", record_type=RecordType.A)
+    assert stub.calls == 1 and cache.hits == 1
 
 
 def test_key_is_normalized_case_and_trailing_dot():
