@@ -5,6 +5,7 @@ Run with:  python -m pytest tests/test_cache.py -v
 """
 
 import csv
+import random
 
 import pytest
 
@@ -12,6 +13,8 @@ from src.dns_resolver import parser as parser_mod
 from src.dns_resolver import resolver as resolver_mod
 from src.dns_resolver.cache import (
     CachingResolver,
+    DelegatingResolver,
+    DelegationCache,
     cache_ttl,
     negative_ttl,
     positive_ttl,
@@ -393,3 +396,143 @@ def test_e2e_resolution_failure_is_not_cached(fake_net):
     with pytest.raises(ResolutionError):
         cache.resolve("example.com", RecordType.A)
     assert len(cache) == 0 and cache.errors == 1
+
+
+# ---------------------------------------------------------------------------
+# Delegation cache (NS + glue): unit tests
+# ---------------------------------------------------------------------------
+
+def test_delegation_cache_store_and_expire():
+    clock = FakeClock()
+    cache = DelegationCache(clock=clock)
+    cache.store("com", [("a.gtld.net", ["2.0.0.1"])], ttl=300)
+    assert cache.live() == {"com": [("a.gtld.net", ("2.0.0.1",))]}
+    clock.advance(299)
+    assert "com" in cache.live()
+    clock.advance(1)
+    assert cache.live() == {}
+
+
+def test_delegation_cache_ignores_ttl_zero_and_root():
+    cache = DelegationCache(clock=FakeClock())
+    cache.store("com", [("a.gtld.net", ["2.0.0.1"])], ttl=0)
+    cache.store("", [("a.root", ["1.0.0.1"])], ttl=300)
+    assert cache.live() == {}
+
+
+def test_delegation_cache_drops_oldest_when_full():
+    cache = DelegationCache(max_entries=2, clock=FakeClock())
+    for zone in ("a.com", "b.com", "c.com"):
+        cache.store(zone, [("ns." + zone, ["9.9.9.9"])], ttl=300)
+    assert set(cache.live()) == {"b.com", "c.com"}
+    assert cache.evictions == 1
+
+
+def test_delegation_cache_invalidate_and_clear():
+    cache = DelegationCache(clock=FakeClock())
+    cache.store("a.com", [("ns.a.com", ["9.9.9.9"])], ttl=300)
+    cache.store("b.com", [("ns.b.com", ["9.9.9.8"])], ttl=300)
+    cache.invalidate("a.com")
+    assert set(cache.live()) == {"b.com"}
+    cache.clear()
+    assert len(cache) == 0
+
+
+def test_default_caching_resolver_has_delegation_cache():
+    assert isinstance(CachingResolver().resolver, DelegatingResolver)
+
+
+# ---------------------------------------------------------------------------
+# Delegation cache: end-to-end on Ayush's real resolver + fake network
+# ---------------------------------------------------------------------------
+
+def make_delegating(fake_net, net, clock):
+    resolver = DelegatingResolver(
+        root_servers=[fake_net.ROOT], udp=net.udp, tcp=net.tcp,
+        selector=resolver_mod.ServerSelector(rng=random.Random(0)),
+        delegation_cache=DelegationCache(clock=clock),
+    )
+    return CachingResolver(resolver=resolver, clock=clock), resolver
+
+
+def test_e2e_new_name_in_known_zone_skips_root_and_tld(fake_net):
+    net, clock = fake_net.standard_network(), FakeClock()
+    cache, _ = make_delegating(fake_net, net, clock)
+
+    cache.resolve("example.com", RecordType.A)          # cold: root, com, example.com
+    assert [ip for _, ip, _, _ in net.log] == [fake_net.ROOT, fake_net.COM, fake_net.EXAMPLE]
+    before = len(net.log)
+
+    result = cache.resolve("nothere.example.com", RecordType.A)   # NEW name, same zone
+    assert result.rcode == ResponseCode.NXDOMAIN
+    assert [ip for _, ip, _, _ in net.log[before:]] == [fake_net.EXAMPLE]   # 1 query, not 3
+    assert cache.log[-1].start_zone == "example.com"
+    assert cache.log[-1].queries_sent == 1
+    assert cache.stats()["delegation_hits"] == 1
+
+
+def test_e2e_new_zone_under_known_tld_skips_root(fake_net):
+    net, clock = fake_net.standard_network(), FakeClock()
+    cache, _ = make_delegating(fake_net, net, clock)
+
+    cache.resolve("example.com", RecordType.A)
+    before = len(net.log)
+    result = cache.resolve("other.com", RecordType.A)   # different zone, same .com
+    assert result.rcode == ResponseCode.NXDOMAIN
+    assert [ip for _, ip, _, _ in net.log[before:]] == [fake_net.COM]       # root skipped
+    assert cache.log[-1].start_zone == "com"
+
+
+def test_e2e_delegation_expires_and_walk_restarts_at_root(fake_net):
+    net, clock = fake_net.standard_network(), FakeClock()   # NS / glue TTL is 300
+    cache, _ = make_delegating(fake_net, net, clock)
+
+    cache.resolve("example.com", RecordType.A)
+    clock.advance(301)
+    before = len(net.log)
+    cache.resolve("again.example.com", RecordType.A)
+    assert [ip for _, ip, _, _ in net.log[before:]] == [
+        fake_net.ROOT, fake_net.COM, fake_net.EXAMPLE]
+    assert cache.log[-1].start_zone == "."
+
+
+def test_e2e_stale_delegation_falls_back_to_a_cold_walk(fake_net):
+    net, clock = fake_net.standard_network(), FakeClock()
+    cache, resolver = make_delegating(fake_net, net, clock)
+    cache.resolve("example.com", RecordType.A)           # learns example.com -> EXAMPLE
+
+    # example.com moves to a new server; the old one goes dead
+    new_server = "3.0.0.2"
+    net.servers[fake_net.EXAMPLE] = lambda q, t: None
+    net.servers[new_server] = fake_net.example_server
+    net.servers[fake_net.COM] = lambda q, t: (
+        dict(authority=[fake_net.rr("example.com", RecordType.NS, "ns2.example.com")],
+             additional=[fake_net.rr("ns2.example.com", RecordType.A, new_server)])
+        if fake_net.is_subdomain(q, "example.com") else fake_net.com_server(q, t))
+
+    result = cache.resolve("later.example.com", RecordType.A)
+    assert result.rcode == ResponseCode.NXDOMAIN
+    assert cache.log[-1].queries_sent == 4               # 1 wasted + root, com, new server
+    assert resolver.delegation_cache.live()["example.com"] == [("ns2.example.com", (new_server,))]
+
+
+def test_e2e_plain_resolver_gets_answer_cache_only(fake_net):
+    net = fake_net.standard_network()
+    cache = CachingResolver(net.resolver(), clock=FakeClock())
+    cache.resolve("example.com", RecordType.A)
+    cache.resolve("nothere.example.com", RecordType.A)
+    assert [row.queries_sent for row in cache.log] == [3, 3]
+    assert [row.start_zone for row in cache.log] == [".", "."]
+    stats = cache.stats()
+    assert stats["delegation_hits"] == 0 and stats["delegation_entries"] == 0
+
+
+def test_e2e_clear_empties_delegations_too_unless_told_not_to(fake_net):
+    net, clock = fake_net.standard_network(), FakeClock()
+    cache, resolver = make_delegating(fake_net, net, clock)
+    cache.resolve("example.com", RecordType.A)
+    assert len(resolver.delegation_cache) == 2           # com, example.com
+    cache.clear(include_delegations=False)
+    assert len(resolver.delegation_cache) == 2
+    cache.clear()
+    assert len(resolver.delegation_cache) == 0
