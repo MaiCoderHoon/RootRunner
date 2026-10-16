@@ -5,6 +5,7 @@
 # run from project folder:  python -m experiments.exp1_cold_warm
 
 import statistics
+from datetime import datetime
 from pathlib import Path
 
 from src.dns_resolver.cache import CachingResolver
@@ -62,7 +63,9 @@ def main():
         print(f"warm is about {cold_med / warm_med:,.0f}x faster (median)")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = out_dir / "exp1_cold_warm.csv"
+    # date+time in the name so each run gets its own file
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+    csv_path = out_dir / f"exp1_cold_warm_{stamp}.csv"
     n = cache.export_log_csv(csv_path)
     print(f"saved {n} rows -> {csv_path}")
     print(cache.stats())
