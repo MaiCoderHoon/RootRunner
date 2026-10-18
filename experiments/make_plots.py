@@ -1,4 +1,4 @@
-# makes all the graphs from the csv files in experiments/results
+# makes all the graphs (exp 1-5) from the csv files in experiments/results
 # saves png files to experiments/plots
 #
 # run from project folder:  python -m experiments.make_plots
@@ -92,7 +92,7 @@ def plot_queries():
     ax.set_ylabel("number of lookups")
     ax.grid(axis="x", visible=False)
     ax.legend(frameon=False, ncol=2, loc="lower left", bbox_to_anchor=(0, 1.0))
-    ax.set_title("Queries per lookup, 115 different sites", loc="left", color=INK, pad=28)
+    ax.set_title("Queries per lookup: 114 successful of 115 sites", loc="left", color=INK, pad=28)
     save(fig, "exp2_queries_per_lookup.png")
 
 
@@ -157,11 +157,40 @@ def plot_dead_server():
     save(fig, "exp4_dead_server.png")
 
 
+def plot_vs_dig():
+    p = res_dir / "exp5_vs_dig.csv"
+    if not p.exists():
+        print("missing", p, "skipping exp5 plot")
+        return
+    rows = read(p)
+    sites = [r["site"] for r in rows]
+    dig_q = [int(r["dig_queries"]) for r in rows]
+    our_q = [int(r["our_queries"]) for r in rows]
+    h = 0.38
+    ys = range(len(rows))
+
+    fig, ax = plt.subplots(figsize=(7, 0.32 * len(rows) + 1.4))
+    ax.barh([y - h / 2 - 0.01 for y in ys], dig_q, height=h, color=BLUE, label="dig +trace")
+    ax.barh([y + h / 2 + 0.01 for y in ys], our_q, height=h, color=ORANGE, label="our resolver")
+    for y, (d, o) in enumerate(zip(dig_q, our_q)):
+        if o != d:
+            ax.annotate(f"{o}", (o, y + h / 2), xytext=(3, 0), textcoords="offset points",
+                        va="center", fontsize=8, color=INK)
+    ax.set_yticks(list(ys), sites, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel("queries sent")
+    ax.grid(axis="y", visible=False)
+    ax.legend(frameon=False, ncol=2, loc="lower left", bbox_to_anchor=(0, 1.0))
+    ax.set_title("Queries per lookup: our resolver vs dig +trace", loc="left", color=INK, pad=28)
+    save(fig, "exp5_vs_dig.png")
+
+
 def main():
     plot_cold_warm()
     plot_queries()
     plot_hit_ratio()
     plot_dead_server()
+    plot_vs_dig()
 
 
 if __name__ == "__main__":
