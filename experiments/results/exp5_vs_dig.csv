@@ -1,0 +1,23 @@
+site,dig_queries,dig_ms,our_queries,our_hops,our_ms,we_followed_cname,glueless_queries,dig_stopped_at_cname,dig_servers
+google.com,3,221,3,3,384,False,0,False,m.root-servers.net > m.gtld-servers.net > ns2.google.com
+github.com,3,275,3,3,265,False,0,False,k.root-servers.net > h.gtld-servers.net > dns2.p08.nsone.net
+wikipedia.org,3,337,3,3,231,False,0,False,e.root-servers.net > a2.org.afilias-nst.info > ns2.wikimedia.org
+python.org,3,108,3,3,244,False,0,False,k.root-servers.net > b0.org.afilias-nst.org > ns-484.awsdns-60.com
+amazon.com,3,315,3,3,229,False,0,False,h.root-servers.net > j.gtld-servers.net > ns-264.awsdns-33.com
+microsoft.com,3,326,3,3,138,False,0,False,g.root-servers.net > l.gtld-servers.net > ns2-39.azure-dns.net
+apple.com,3,280,3,3,285,False,0,False,b.root-servers.net > g.gtld-servers.net > d.ns.apple.com
+cloudflare.com,3,140,3,3,670,False,0,False,k.root-servers.net > e.gtld-servers.net > ns4.cloudflare.com
+stackoverflow.com,3,323,3,3,284,False,0,False,k.root-servers.net > j.gtld-servers.net > sureena.ns.cloudflare.com
+reddit.com,3,192,3,3,235,False,0,False,m.root-servers.net > m.gtld-servers.net > ns-378.awsdns-47.com
+netflix.com,3,243,3,3,276,False,0,False,a.root-servers.net > b.gtld-servers.net > ns-1372.awsdns-43.org
+linkedin.com,3,272,3,3,232,False,0,False,b.root-servers.net > l.gtld-servers.net > dns2.p09.nsone.net
+mozilla.org,3,119,6,6,510,False,3,False,j.root-servers.net > b0.org.afilias-nst.org > ns5-65.akam.net
+kiit.ac.in,3,119,6,6,742,False,3,False,e.root-servers.net > ns3.registry.in > zara.ns.cloudflare.com
+iitb.ac.in,3,143,3,3,160,False,0,False,l.root-servers.net > ns2.registry.in > dns2.iitb.ac.in
+bbc.co.uk,3,403,3,3,435,False,0,False,f.root-servers.net > dns2.nic.uk > ddns0.bbc.co.uk
+nytimes.com,3,308,3,3,223,False,0,False,b.root-servers.net > f.gtld-servers.net > dns2.p06.nsone.net
+yahoo.com,3,288,3,3,372,False,0,False,l.root-servers.net > g.gtld-servers.net > ns5.yahoo.com
+bing.com,3,224,3,3,396,False,0,False,d.root-servers.net > k.gtld-servers.net > dns1.p09.nsone.net
+spotify.com,3,220,3,3,279,False,0,False,k.root-servers.net > l.gtld-servers.net > ns-cloud-a2.googledomains.com
+www.github.com,3,153,3,3,194,True,0,True,k.root-servers.net > e.gtld-servers.net > ns-1283.awsdns-32.org
+www.microsoft.com,3,158,9,9,953,True,0,True,f.root-servers.net > d.gtld-servers.net > ns1-39.azure-dns.com
