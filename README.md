@@ -4,8 +4,6 @@
 
 RootRunner demonstrates how DNS resolution works beneath a typical recursive lookup. It starts with the root nameservers, follows referrals through TLD servers, and reaches authoritative nameservers. Positive and negative answers are cached until their TTL expires. RootRunner can also run as a local UDP DNS server.
 
-Built for **CS-30003, Coding Assignment 1 (Project P2)**.
-
 ~~~console
 $ python -m src.dns_resolver.resolver github.com A
 ;; github.com A: NOERROR, 3 hop(s)
@@ -294,7 +292,7 @@ python -m pytest tests/test_parser.py -v -s
 | tests/test_cache.py | TTL countdown, RFC 2308 negative caching, LRU eviction, error handling, delegation cache, stale-delegation retry, statistics, and CSV logging. Uses a stub resolver and fake clock. |
 | tests/test_server.py | Question parsing, CNAME and AAAA replies, compression, cache hits, NXDOMAIN, SERVFAIL, unsupported types, malformed packets, and a local UDP socket round trip. |
 
-The project includes **100+ tests**, designed to run without internet access.
+The test suite includes **100+ tests**, designed to run without internet access.
 
 To capture a fresh real DNS response for parser testing (requires network access):
 
@@ -304,9 +302,9 @@ python scripts/capture_real_response.py
 
 ---
 
-## 7. Experiments and results
+## 7. Performance evaluation
 
-Five experiments and a real-world validation were run from a home connection in October 2026. The full report, detailed tables, plots, and caveats are in [experiments/RESULTS.md](experiments/RESULTS.md). Raw CSVs are under experiments/results/ and plots are under experiments/plots/.
+RootRunner was evaluated through a set of repeatable performance tests and a real-world validation run from a home connection in October 2026. The full methodology, detailed tables, plots, and caveats are documented in [experiments/RESULTS.md](experiments/RESULTS.md). Raw CSVs are under experiments/results/ and plots are under experiments/plots/.
 
 | # | Experiment | Headline result |
 |---|---|---|
@@ -345,7 +343,7 @@ Experiment 5 requires dig; edit the executable path at the top of its script if 
 - **Network-dependent failures.** In the test network, yandex.ru failed and westus-0.in.applicationinsights.azure.com returned SERVFAIL. The precise causes were not conclusively established.
 - **Internal coupling.** DelegatingResolver uses IterativeResolver internals such as _Context, _NameServer, and _extract_referral. Renaming them may require updates in cache.py.
 
-RootRunner is an educational project, not a hardened production DNS service. Avoid exposing it to untrusted networks.
+RootRunner is a hands-on implementation of DNS resolution internals and is not yet a hardened production DNS service. Avoid exposing it to untrusted networks.
 
 ---
 
@@ -380,7 +378,7 @@ RootRunner/
 
 ---
 
-## 10. Team
+## 10. Contributors
 
 | Component | Owner |
 |---|---|
@@ -389,4 +387,4 @@ RootRunner/
 | Caching and TTL handling (cache.py) | Bibhu Biswal |
 | Experiments, plots, server mode, and OS validation (experiments/, server.py) | Aryaman Padhi |
 
-Based primarily on **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
+RootRunner implements core DNS behaviour informed by **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
