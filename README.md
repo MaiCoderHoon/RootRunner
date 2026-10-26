@@ -377,14 +377,4 @@ RootRunner/
 ~~~
 
 ---
-
-## 10. Contributors
-
-| Component | Owner |
-|---|---|
-| DNS wire-format parser and encoder (parser.py) | Piyush Bisoi |
-| Iterative resolution and server selection (resolver.py) | Ayush Kumar |
-| Caching and TTL handling (cache.py) | Bibhu Biswal |
-| Experiments, plots, server mode, and OS validation (experiments/, server.py) | Aryaman Padhi |
-
 RootRunner implements core DNS behaviour informed by **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
