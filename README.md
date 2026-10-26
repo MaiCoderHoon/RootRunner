@@ -1,8 +1,17 @@
 # RootRunner
 
-**An iterative DNS resolver with caching, written from scratch in Python using only the standard library.**
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white" alt="Python 3.12 and 3.13"></a>
+  <a href="https://github.com/MaiCoderHoon/RootRunner/stargazers"><img src="https://img.shields.io/github/stars/MaiCoderHoon/RootRunner?style=flat" alt="GitHub stars"></a>
+  <a href="https://github.com/MaiCoderHoon/RootRunner/issues"><img src="https://img.shields.io/github/issues/MaiCoderHoon/RootRunner?style=flat" alt="Open issues"></a>
+  <a href="https://img.shields.io/github/last-commit/MaiCoderHoon/RootRunner"><img src="https://img.shields.io/github/last-commit/MaiCoderHoon/RootRunner?style=flat" alt="Last commit"></a>
+</p>
 
-RootRunner demonstrates how DNS resolution works beneath a typical recursive lookup. It starts with the root nameservers, follows referrals through TLD servers, and reaches authoritative nameservers. Positive and negative answers are cached until their TTL expires. RootRunner can also run as a local UDP DNS server.
+<p align="center"><strong>DNS resolution, from the root servers up — implemented from scratch in Python.</strong></p>
+
+RootRunner is an iterative DNS resolver with TTL-aware caching, RTT-based nameserver selection, and a local UDP DNS server. It starts at the root nameservers, follows referrals through TLD servers, and reaches authoritative nameservers rather than forwarding the query to a public recursive resolver.
+
+**At a glance:** iterative resolution · positive and negative caching · delegation caching · CNAME handling · packet parsing and encoding · command-line tracing
 
 ~~~console
 $ python -m src.dns_resolver.resolver github.com A
@@ -20,10 +29,10 @@ A cold lookup commonly takes about three queries (root, TLD, authoritative) and 
 4. [Local DNS server](#4-local-dns-server)
 5. [Design decisions](#5-design-decisions)
 6. [Tests](#6-tests)
-7. [Experiments and results](#7-experiments-and-results)
+7. [Performance evaluation](#7-performance-evaluation)
 8. [Known limitations](#8-known-limitations)
 9. [Repository layout](#9-repository-layout)
-10. [Team](#10-team)
+10. [Contributors](#10-contributors)
 
 ---
 
