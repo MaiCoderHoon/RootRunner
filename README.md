@@ -1,419 +1,364 @@
 # RootRunner
 
-**A from-scratch iterative DNS resolver for Python, with TTL-aware caching, delegation reuse, server selection, and an optional local DNS server.**
+**An iterative DNS resolver with caching, written from scratch in Python using only the standard library.**
 
-RootRunner explores how DNS resolution works below the usual high-level lookup APIs. Instead of forwarding every cache miss to a public recursive resolver, it walks the DNS hierarchy itself: from root nameservers, through top-level-domain (TLD) referrals, to authoritative nameservers.
+RootRunner demonstrates how DNS resolution works beneath a typical recursive lookup. It starts with the root nameservers, follows referrals through TLD servers, and reaches authoritative nameservers. Positive and negative answers are cached until their TTL expires. RootRunner can also run as a local UDP DNS server.
 
-The project also includes a DNS wire-format parser/encoder, a bounded answer cache, an optional delegation cache, lookup tracing, a local UDP DNS server, automated tests, and reproducible experiments.
+Built for **CS-30003, Coding Assignment 1 (Project P2)**.
 
-> **Project status:** Academic / experimental project. The resolver has been tested against live DNS infrastructure and through a local Windows DNS configuration, but it is not intended to replace a production recursive resolver.
+~~~console
+$ python -m src.dns_resolver.resolver github.com A
+;; github.com A: NOERROR, 3 hop(s)
+github.com                     60      A      20.207.73.82
+~~~
+
+A cold lookup commonly takes about three queries (root, TLD, authoritative) and a few hundred milliseconds. Add --trace to inspect queried servers and round-trip times. Results vary with the network and the time of the lookup.
 
 ## Contents
 
-- [Highlights](#highlights)
-- [How DNS resolution works](#how-dns-resolution-works)
-- [Architecture](#architecture)
-- [Supported DNS records](#supported-dns-records)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Resolve a name from the command line](#resolve-a-name-from-the-command-line)
-  - [Show the resolution trace](#show-the-resolution-trace)
-  - [Use the resolver from Python](#use-the-resolver-from-python)
-  - [Use the cache](#use-the-cache)
-  - [Run the local DNS server](#run-the-local-dns-server)
-- [Caching behaviour](#caching-behaviour)
-- [Experiments and results](#experiments-and-results)
-- [Run the tests](#run-the-tests)
-- [Project structure](#project-structure)
-- [Current limitations](#current-limitations)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+1. [Quick start](#1-quick-start)
+2. [How it works](#2-how-it-works)
+3. [Python API](#3-python-api)
+4. [Local DNS server](#4-local-dns-server)
+5. [Design decisions](#5-design-decisions)
+6. [Tests](#6-tests)
+7. [Experiments and results](#7-experiments-and-results)
+8. [Known limitations](#8-known-limitations)
+9. [Repository layout](#9-repository-layout)
+10. [Team](#10-team)
 
-## Highlights
+---
 
-- **Iterative DNS resolution:** follows referrals from root servers to TLD and authoritative nameservers rather than relying on a public recursive resolver for each lookup.
-- **DNS packet parsing and encoding:** implements DNS headers, questions, resource records, and compressed domain names.
-- **IPv4 and IPv6 address lookups:** supports A and AAAA records.
-- **CNAME chain following:** follows aliases within a response and restarts resolution when a CNAME points into another zone.
-- **Referral and glue processing:** learns child-zone nameservers and uses in-bailiwick glue addresses when available.
-- **Glueless delegation handling:** resolves a nameserver's address with a nested lookup when a referral does not include usable glue.
-- **UDP with TCP fallback:** retries over TCP when an upstream UDP response has the DNS truncation bit set.
-- **Response checks:** validates the transaction ID, response bit, echoed question, and delegation/glue boundaries.
-- **RTT-aware nameserver selection:** tracks smoothed round-trip times and penalizes failed servers so slower or unreachable servers are deprioritized.
-- **Bounded resolution work:** a shared hop limit prevents endless referral, CNAME, or nested nameserver-resolution loops.
-- **TTL-aware answer cache:** supports positive and negative caching, remaining-TTL reporting, LRU eviction, statistics, and CSV lookup logs.
-- **Delegation cache:** remembers nameservers for zones so a later lookup for a different name can start closer to the authoritative zone.
-- **Local DNS server mode:** exposes the resolver to local clients over UDP on loopback addresses.
-- **Experiments and plots:** scripts measure cold/warm latency, delegation reuse, cache hit ratios, failure handling, and query counts compared with `dig +trace`.
+## 1. Quick start
 
-## How DNS resolution works
+### Requirements
 
-A typical cold lookup proceeds through the DNS hierarchy:
+- Python 3 (developed and tested on Python 3.12 and 3.13).
+- Internet access permitting outbound DNS traffic over UDP and TCP port 53.
+- No third-party dependencies to run the resolver itself.
+- pytest for tests; matplotlib and numpy only for regenerating experiment plots.
 
-```mermaid
-flowchart TD
-    A[Application requests a DNS record] --> B{Answer cache hit?}
-    B -- Yes --> C[Return cached answer with remaining TTL]
-    B -- No --> D[Query a root nameserver]
-    D --> E[Follow TLD referral]
-    E --> F[Query authoritative nameserver]
-    F --> G{Answer, CNAME, referral, or negative result?}
-    G -- Answer --> H[Return result and cache it when eligible]
-    G -- CNAME --> I[Resolve alias target]
-    I --> D
-    G -- Referral --> J[Follow child-zone nameservers]
-    J --> F
-    G -- NXDOMAIN / NODATA --> K[Return negative result; cache if SOA permits]
-```
-
-The exact number of network queries depends on the name and the response path. A referral may include glue records, or it may require an additional lookup to find a nameserver's IP address. CNAMEs can also introduce additional zones and queries.
-
-RootRunner uses a built-in list of IPv4 root-server addresses as its starting hints. It sends iterative queries (RD=0) and follows referrals itself.
-
-## Architecture
-
-The implementation is organized around four core modules:
-
-| Module | Responsibility |
-| --- | --- |
-| `parser.py` | DNS data structures, wire-format parsing and encoding, record decoding, and name compression handling. |
-| `resolver.py` | Upstream UDP/TCP transport, iterative resolution, referral traversal, CNAME following, response validation, tracing, and RTT-based server selection. |
-| `cache.py` | TTL-aware answer cache, negative caching, LRU eviction, lookup metrics and CSV logging, plus optional delegation caching. |
-| `server.py` | Local UDP DNS server that parses client questions, calls the cached resolver, encodes replies, and writes a lookup log on shutdown. |
-
-### Resolution and caching flow
-
-```mermaid
-flowchart LR
-    Client[CLI / Python caller / local DNS client] --> Cache[CachingResolver]
-    Cache -->|valid answer| Return[Return cached result]
-    Cache -->|cache miss| Delegation[DelegationCache, if enabled]
-    Delegation --> Resolver[IterativeResolver]
-    Resolver --> Parser[DNSParser / DNSEncoder]
-    Parser --> Network[Root, TLD and authoritative DNS servers]
-    Network --> Parser
-    Parser --> Resolver
-    Resolver --> Cache
-    Cache --> Return
-```
-
-By default, `CachingResolver()` uses a `DelegatingResolver`, which combines iterative resolution with delegation caching. Passing an explicit `IterativeResolver()` creates an answer cache without the delegation-cache optimisation. This distinction is important for reproducing the experiments.
-
-## Supported DNS records
-
-The parser's `RecordType` enum currently includes:
-
-| Record | Type code | Purpose |
-| --- | ---: | --- |
-| A | 1 | IPv4 address |
-| NS | 2 | Nameserver |
-| CNAME | 5 | Canonical name / alias |
-| SOA | 6 | Start of authority; used for negative-cache TTL calculation |
-| MX | 15 | Mail exchanger |
-| TXT | 16 | Text data |
-| AAAA | 28 | IPv6 address |
-
-The local server recognises unsupported query types and returns an empty NOERROR response rather than attempting resolution for a type it does not implement. This is a compatibility behaviour, not full support for those record types.
-
-## Requirements
-
-- Python **3.12 or newer is recommended** (the experiments were run in a Python 3.12 virtual environment).
-- Internet access that permits outbound DNS traffic to nameservers on port 53.
-- `pip` for installing the project's Python dependencies.
-- Optional: `dig` for the comparison experiment.
-
-Some networks block direct DNS traffic or intercept it. On such networks, iterative resolution may fail even when ordinary browser DNS works.
-
-## Installation
-
-Clone the repository and enter the project directory:
-
-```bash
+~~~bash
 git clone https://github.com/MaiCoderHoon/RootRunner.git
 cd RootRunner
-```
 
-Create and activate a virtual environment.
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS / Linux:
+source venv/bin/activate
 
-**Windows (PowerShell):**
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-**Linux / macOS:**
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Install the dependencies:
-
-```bash
-python -m pip install --upgrade pip
 pip install -r requirements.txt
-```
+~~~
 
-The requirements file includes:
+Run commands from the repository root because the modules use src.dns_resolver imports.
 
-- `pytest` and `pytest-cov` for tests and coverage
-- `matplotlib` and `numpy` for experiment analysis and plots
-- `black`, `flake8`, and `mypy` for optional code-quality checks
+~~~bash
+python -m src.dns_resolver.resolver github.com
+python -m src.dns_resolver.resolver github.com NS --trace
+python -m src.dns_resolver.resolver doesnotexist-xyz123.com --trace
+python -m pytest tests/ -q
+~~~
 
-Run commands from the repository root so that the `src.dns_resolver` package imports resolve correctly.
+Supported record types: A, AAAA, NS, CNAME, SOA, MX, and TXT.
 
-## Usage
+---
 
-### Resolve a name from the command line
+## 2. How it works
 
-Look up an IPv4 address (A record):
+### Architecture
 
-```bash
-python -m src.dns_resolver.resolver github.com A
-```
+~~~mermaid
+flowchart TB
+    Client["Client applications / OS"]
+    Server["server.py<br/>Local UDP DNS server"]
+    Cache["cache.py<br/>Answer cache + delegation cache"]
+    Resolver["resolver.py<br/>IterativeResolver + ServerSelector"]
+    Parser["parser.py<br/>DNSParser + DNSEncoder"]
+    Hierarchy["DNS hierarchy<br/>Root → TLD → authoritative"]
 
-Look up an IPv6 address (AAAA record):
+    Client --> Server
+    Server --> Cache
+    Cache -->|Cache miss| Resolver
+    Resolver <--> Parser
+    Resolver <--> Hierarchy
+    Cache -->|Cached answer| Server
+~~~
 
-```bash
-python -m src.dns_resolver.resolver github.com AAAA
-```
+| Layer | File | Responsibility |
+|---|---|---|
+| Wire format | src/dns_resolver/parser.py | DNS packet encoding and parsing, including compression pointers. |
+| Resolution | src/dns_resolver/resolver.py | Referral walks, CNAME chains, glueless nameserver resolution, upstream TCP fallback, and RTT-aware server selection. |
+| Caching | src/dns_resolver/cache.py | TTL-aware answer caching and delegation caching. |
+| Server | src/dns_resolver/server.py | Local UDP DNS server backed by the caching resolver. |
 
-The CLI prints the queried name, record type, response code, hop count, and returned records. Supported type names are `A`, `AAAA`, `NS`, `CNAME`, `SOA`, `MX`, and `TXT`.
+### Resolution flow
 
-### Show the resolution trace
+A cold lookup of www.github.com starts at the root, follows the .com referral, and then queries the authoritative nameservers for github.com. The resolver sends iterative queries with RD=0.
 
-Use `--trace` to print the nameserver attempts, zone, query, round-trip time, outcome, and any diagnostic detail:
+~~~mermaid
+sequenceDiagram
+    participant App as Client
+    participant Cache as CachingResolver
+    participant Root as Root nameserver
+    participant TLD as .com nameserver
+    participant Auth as Authoritative nameserver
 
-```bash
-python -m src.dns_resolver.resolver www.github.com A --trace
-```
+    App->>Cache: resolve(www.github.com, A)
+    Cache->>Cache: Answer-cache lookup
+    Note over Cache: Cache miss
+    Cache->>Root: DNS query (RD=0)
+    Root-->>Cache: Referral to .com
+    Cache->>TLD: DNS query (RD=0)
+    TLD-->>Cache: Referral to github.com
+    Cache->>Auth: DNS query (RD=0)
+    Auth-->>Cache: Answer or CNAME
+    Cache->>Cache: Cache result using TTL
+    Cache-->>App: ResolutionResult
+~~~
 
-Change the per-server timeout if needed:
+| Response | Resolver action |
+|---|---|
+| Requested records | Return the answer, including CNAME records followed on the way. |
+| CNAME | Follow the target name from the closest known zone. |
+| NS records for a child zone | Follow the referral, using glue when available. |
+| NXDOMAIN | Return the negative answer and SOA authority data for negative caching. |
+| Authoritative answer without the requested type | Return NODATA, which can be cached. |
+| Anything else | Raise ResolutionError. |
 
-```bash
-python -m src.dns_resolver.resolver github.com A --timeout 3
-```
+### Hop budget and server selection
 
-A trace is useful for investigating slow lookups, CNAME restarts, glueless delegations, timeouts, malformed replies, or referrals that cannot be followed.
+Each query step to a zone's nameservers costs one hop. Retries against other servers in the same zone are free. CNAME restarts and nested glueless-nameserver lookups share the same budget. MAX_HOPS is 16; exceeding it raises HopLimitExceeded.
 
-### Use the resolver from Python
+Each nameserver IP has a smoothed round-trip-time estimate (SRTT):
 
-```python
+- New servers receive a small random initial estimate.
+- Success updates the estimate using an exponentially weighted moving average (alpha = 0.3).
+- Failure (timeout, invalid reply, or SERVFAIL) doubles the estimate, subject to a timeout floor, and moves the server to the back of the queue.
+- Estimates persist for the lifetime of the resolver object.
+
+### Caching
+
+CachingResolver maintains two caches:
+
+| Cache | Key → value | Lifetime | Effect |
+|---|---|---|---|
+| Answer cache | (name, type) → full result | Shortest answer TTL; negative answers use min(SOA TTL, SOA MINIMUM) following RFC 2308. | Repeat lookup can return without DNS queries. |
+| Delegation cache | Zone → nameservers and glue | Shortest TTL of NS and glue records. | New lookups can skip root/TLD steps when valid delegation data is cached. |
+
+- Cache hits report the remaining TTL.
+- Errors are not cached: a timeout does not prove that a name does not exist.
+- The answer cache uses LRU eviction and defaults to 1,000 entries.
+- If cached delegation data appears stale, it is discarded and resolution retries from the root.
+- Lookup logs include HIT, NEGATIVE_HIT, MISS, ERROR, latency, query count, and starting zone. Logs can be exported to CSV.
+
+---
+
+## 3. Python API
+
+### Resolve a name
+
+~~~python
+from src.dns_resolver.resolver import IterativeResolver
 from src.dns_resolver.parser import RecordType
-from src.dns_resolver.resolver import IterativeResolver, ResolutionError
 
 resolver = IterativeResolver()
+result = resolver.resolve("www.github.com", RecordType.A)
 
-try:
-    result = resolver.resolve("github.com", RecordType.A)
+print(result.rcode.name)
+print(result.addresses)
+print(result.cname_chain)
+print(result.hops)
 
-    print("Response:", result.rcode.name)
-    print("Addresses:", result.addresses)
-    print("Hops:", result.hops)
+for step in result.trace:
+    print(step.zone, step.server, step.outcome, step.rtt_ms)
+~~~
 
-    for step in result.trace:
-        print(
-            step.zone or ".",
-            step.server,
-            step.qname,
-            step.qtype.name,
-            step.outcome,
-            step.rtt_ms,
-        )
-except (ResolutionError, ValueError) as exc:
-    print(f"Resolution failed: {exc}")
-```
+ResolutionResult exposes qname, qtype, rcode, answers, authority, cname_chain, hops, and trace. Each ResourceRecord has name, type, ttl, and a human-readable data value.
 
-The `ResolutionResult` includes:
+### Resolve with caching
 
-- `qname` and `qtype`: the normalized query name and requested record type
-- `rcode`: the DNS response code
-- `answers`: decoded resource records, including any CNAME records followed
-- `authority`: decoded authority records, useful for negative answers
-- `cname_chain`: names visited during CNAME resolution
-- `hops`: resolution steps counted against the hop limit
-- `trace`: individual nameserver attempts
-- `addresses`: convenience property for A/AAAA values in the answer list
-
-### Use the cache
-
-`CachingResolver` has the same basic `resolve(domain, record_type)` interface:
-
-```python
+~~~python
 from src.dns_resolver.cache import CachingResolver
-from src.dns_resolver.parser import RecordType
-
-# Answer cache + delegation cache
-resolver = CachingResolver()
-
-first = resolver.resolve("github.com", RecordType.A)
-second = resolver.resolve("github.com", RecordType.A)
-
-print(first.addresses)
-print(second.addresses)
-print(resolver.stats())
-```
-
-To use answer caching without delegation caching:
-
-```python
-from src.dns_resolver.cache import CachingResolver
-from src.dns_resolver.parser import RecordType
 from src.dns_resolver.resolver import IterativeResolver
 
-resolver = CachingResolver(resolver=IterativeResolver())
-result = resolver.resolve("github.com", RecordType.A)
-```
+cache = CachingResolver()  # Answer cache + delegation cache
+# cache = CachingResolver(IterativeResolver())  # Answer cache only
 
-Inspect statistics and export per-lookup records:
+cache.resolve("github.com")       # MISS: starts from the root
+cache.resolve("github.com")       # HIT: no DNS queries
+cache.resolve("www.github.com")   # May use cached delegation information
 
-```python
-print(resolver.stats())
-resolver.export_log_csv("lookup-log.csv")
-```
+print(cache.stats())
+cache.export_log_csv("lookups.csv")
+cache.flush("github.com")
+cache.clear()
+~~~
 
-The statistics include positive hits, negative hits, misses, errors, evictions, delegation-cache use, cache size, lookup count, and hit ratio. The CSV log records latency, queries sent, starting zone, hops, response code, and TTL.
+### Packet parsing
 
-### Run the local DNS server
+~~~python
+from src.dns_resolver.parser import (
+    DNSEncoder, DNSParser, DNSHeader, DNSQuestion,
+    RecordType, RecordClass, ResponseCode, format_rdata,
+)
 
-The server listens on UDP port 53 at `127.0.0.1` and `::1` by default. Port 53 may require elevated privileges on some systems and may already be in use.
+header = DNSHeader(
+    id=1234, qr=False, opcode=0, aa=False, tc=False, rd=False,
+    ra=False, rcode=ResponseCode.NOERROR,
+    qdcount=1, ancount=0, nscount=0, arcount=0,
+)
+query = DNSEncoder().encode_message(
+    header,
+    [DNSQuestion("google.com", RecordType.A, RecordClass.IN)],
+)
 
-Start it from the repository root:
+# Send query over UDP and receive reply...
+header, questions, answers, authority, additional = DNSParser().parse_message(reply)
 
-```bash
+for rec in answers:
+    print(rec.name, rec.ttl, format_rdata(
+        rec.type, rec.rdata, packet=reply, rdata_offset=rec.rdata_offset
+    ))
+~~~
+
+**Compression-pointer gotcha:** NS, CNAME, and MX RDATA may refer to names elsewhere in the packet. Pass both packet and rdata_offset to format_rdata() to decode these names correctly. The iterative resolver does this.
+
+### Exceptions
+
+| Exception | Meaning |
+|---|---|
+| ResolutionError | Resolution could not complete (for example, all candidate servers failed, a lame delegation was encountered, or a CNAME loop was detected). Its trace records the attempted walk. |
+| HopLimitExceeded | ResolutionError subclass raised when the 16-hop budget is exceeded. |
+| ValueError | Invalid domain name, such as an empty label, label longer than 63 characters, name longer than 253 characters, or non-ASCII input. Convert internationalised names to punycode first. |
+
+---
+
+## 4. Local DNS server
+
+The local server listens on UDP loopback addresses 127.0.0.1 and ::1 on port 53 by default. Port 53 may require elevated privileges; use an unprivileged port for initial testing.
+
+~~~bash
 python -m src.dns_resolver.server
-```
-
-In a second terminal, test it without changing system DNS settings:
-
-```bash
-nslookup github.com 127.0.0.1
-```
-
-To use a non-default port:
-
-```bash
 python -m src.dns_resolver.server --port 5353
+python -m src.dns_resolver.server --hosts 127.0.0.1
+~~~
+
+Test it with nslookup:
+
+~~~bash
+nslookup github.com 127.0.0.1
 nslookup -port=5353 github.com 127.0.0.1
-```
+~~~
 
-The server supports the `--hosts`, `--port`, and `--log` options. For example, to listen only on IPv4 loopback and write the log to a custom path:
+The second command is for a server running on port 5353. Stop with Ctrl+C. On shutdown, cache statistics are printed and the per-lookup log is saved to experiments/results/server_log.csv by default; use --log to choose another path.
 
-```bash
-python -m src.dns_resolver.server --hosts 127.0.0.1 --port 5353 --log experiments/results/local-test.csv
-```
+### Behaviour and local browsing
 
-Press **Ctrl+C** to stop the server and export the lookup log. The default log path is `experiments/results/server_log.csv`.
+- Failed resolutions return SERVFAIL; the server keeps running.
+- Replies over 512 bytes are truncated by setting the TC bit.
+- Unsupported query types such as HTTPS (65) and PTR (12) receive an empty NOERROR response.
+- The local server supports UDP only. Upstream truncated replies are retried over TCP by the iterative resolver.
 
-> **Safety note:** test against loopback first. Do not change your computer's system DNS settings unless you understand how to restore them. If you do point the system at RootRunner, keep the server running during the test and restore DNS to Automatic afterwards. Browser Secure DNS / DNS-over-HTTPS settings may bypass the operating-system resolver.
+The project was validated for browsing on Windows 11. First verify the server with nslookup. If you configure Windows to use the local resolver, set IPv4 DNS to 127.0.0.1 and optionally IPv6 DNS to ::1. Chrome's Secure DNS setting may bypass the operating system resolver during testing. **Restore DNS assignment to Automatic before stopping RootRunner**, or name resolution may stop working after the server exits.
 
-The current server is a development/testing server, not a production-hardened recursive DNS service. See [Current limitations](#current-limitations).
+---
 
-## Caching behaviour
+## 5. Design decisions
 
-RootRunner has two separate caches with different purposes.
+| Decision | Rationale |
+|---|---|
+| RD=0 on outgoing queries | RootRunner performs iterative resolution itself. |
+| Bailiwick checks | Answer and glue data are accepted only within the relevant authority boundaries. |
+| Reject upward and sideways referrals | Referrals must descend to a child zone that still contains the queried name, helping prevent loops. |
+| Validate responses | Query ID, QR bit, and echoed question must match. IDs are generated using secrets. |
+| Check TC before parsing the whole packet | A truncated packet can end mid-record; inspect the header and retry upstream over TCP. |
+| Resolve glueless nameservers lazily | Resolve nameservers without known IPs only after known-address servers fail; nested lookups share the hop budget and use cycle protection. |
+| Do not cache errors | A timeout or SERVFAIL is not a negative DNS answer. |
+| Injectable transport and clock | IterativeResolver(udp=..., tcp=...) and CachingResolver(clock=...) enable offline tests and deterministic timing without sleep(). |
+| Parse server questions separately | The server can handle unsupported query types without requiring the parser to support every record type. |
 
-### Answer cache
+---
 
-- Cache key: normalized domain name and record type.
-- Positive answers: cached for the shortest TTL among the returned answer records. This accounts for CNAME chains whose individual records have different TTLs.
-- Negative answers: NXDOMAIN and NODATA results can be cached using the SOA TTL and SOA MINIMUM value, following the RFC 2308 rule implemented in the project.
-- Negative answers without an SOA record are not cached.
-- Errors are not cached. A timeout or failed resolution is not proof that a name does not exist.
-- Remaining TTL values are returned on hits.
-- The cache uses least-recently-used (LRU) eviction when its entry limit is reached. The default limit is 1,000 entries.
-- Expired entries are discarded when accessed or when statistics are collected.
+## 6. Tests
 
-### Delegation cache
+~~~bash
+python -m pytest tests/ -q
+python -m pytest tests/test_parser.py -v -s
+~~~
 
-The delegation cache stores zone-to-nameserver information learned from referrals, including available glue addresses. Entries expire based on the shortest relevant NS/glue TTL. The default limit is 500 zone entries.
+| Test file | Coverage |
+|---|---|
+| tests/test_parser.py | DNS headers, names and questions, compression pointers, supported record types, encoder round trips, and real wire-format responses captured from 8.8.8.8 in docs/responses/*.bin. |
+| tests/test_resolver.py | Referrals, CNAME chains and loops, NXDOMAIN/NODATA, retries, TCP fallback, glueless delegations, hop limits, and ServerSelector. Uses a fake network returning DNS wire-format packets. |
+| tests/test_cache.py | TTL countdown, RFC 2308 negative caching, LRU eviction, error handling, delegation cache, stale-delegation retry, statistics, and CSV logging. Uses a stub resolver and fake clock. |
+| tests/test_server.py | Question parsing, CNAME and AAAA replies, compression, cache hits, NXDOMAIN, SERVFAIL, unsupported types, malformed packets, and a local UDP socket round trip. |
 
-This cache helps when resolving **different names** within zones already discovered: a later lookup may begin at a cached TLD or authoritative zone rather than starting at the root. If a cached delegation appears stale and resolution fails, the resolver invalidates the used cached delegations and retries from the root.
+The project includes **100+ tests**, designed to run without internet access.
 
-For controlled experiments, use `CachingResolver(resolver=IterativeResolver())` to disable delegation caching while retaining the answer cache.
+To capture a fresh real DNS response for parser testing (requires network access):
 
-## Experiments and results
+~~~bash
+python scripts/capture_real_response.py
+~~~
 
-The `experiments/` directory contains scripts, recorded CSV output, plots, and a detailed report in [`experiments/RESULTS.md`](experiments/RESULTS.md). The results below are the measurements recorded in that report, not performance guarantees.
+---
 
-| Experiment | Setup | Recorded finding |
-| --- | --- | --- |
-| Cold vs. warm lookups | 20 popular sites, answer cache only | Cold median was 249.5–281.3 ms across two runs; warm median was approximately 0.010–0.011 ms. |
-| Many distinct sites | 115 unique names, with and without delegation caching | Mean queries per successful lookup fell from 3.96 to 2.58; median latency fell from 287.8 ms to 180.1 ms in the recorded run. |
-| Replayed query trace | 500 lookups over a fixed, popularity-weighted trace | 450 hits, 50 misses, and a 0.90 answer-cache hit ratio. |
-| Simulated unavailable servers | Normal, authoritative-server outage, partial root outage, all roots unavailable | The resolver recovered in several simulated failure cases and stopped after its configured attempt limit when all root servers were unavailable. |
-| Comparison with `dig +trace` | 22 names | Query counts matched on 19 of 22 names; differences were explained by glueless nameservers and CNAME following. |
+## 7. Experiments and results
 
-### Important context for interpreting the numbers
+Five experiments and a real-world validation were run from a home connection in October 2026. The full report, detailed tables, plots, and caveats are in [experiments/RESULTS.md](experiments/RESULTS.md). Raw CSVs are under experiments/results/ and plots are under experiments/plots/.
 
-- The experiments were run on one Windows 11 laptop and one home network, between 15 and 18 October 2026.
-- The warm-cache timing measures in-process cache lookup time, not an end-to-end application speed-up under all workloads.
-- The 500-query trace uses a fixed seed and a popularity-weighted selection of 50 names; it is a controlled workload, not a general internet traffic sample.
-- The unavailable-server experiment simulates timeouts rather than taking real DNS infrastructure offline.
-- Most experiments were run once, so the reported figures should be treated as observations from the recorded runs.
+| # | Experiment | Headline result |
+|---|---|---|
+| 1 | Cold vs. warm latency across 20 sites | Cold median: **250–281 ms**; warm median: about **0.01 ms**. |
+| 2 | 115 distinct sites, answer cache only vs. answer + delegation cache | Queries per lookup: **3.96 → 2.58**; median latency: **288 → 180 ms**. |
+| 3 | 500 lookups over 50 sites with Zipf-like popularity | Cache hit ratio: **0.90** (best possible for this trace: 0.902). |
+| 4 | Simulated unavailable nameservers | Resolution succeeds with 6 of 13 root servers unavailable. With all roots unavailable, it fails cleanly after 6 attempts rather than hanging. |
+| 5 | Query count compared with dig +trace for 22 names | Counts matched for **19 of 22** names. Differences reflect glueless NS address resolution and cross-zone CNAME handling. |
+| OS | Windows 11 browsing through server.py | Pages loaded normally; 207 filtered lookups, **0 errors**, hit ratio 0.39. |
 
-### Re-run the experiments
+Reproduce the experiments from the repository root:
 
-Run these commands from the repository root with the virtual environment active:
-
-```bash
+~~~bash
 python -m experiments.exp1_cold_warm
 python -m experiments.exp2_many_sites
 python -m experiments.exp3_replay_trace
 python -m experiments.exp4_dead_server
 python -m experiments.exp5_vs_dig
 python -m experiments.make_plots
-```
+~~~
 
-Experiment 5 requires `dig` and currently expects its executable path to be configured in `experiments/exp5_vs_dig.py`. Update the `DIG` variable for your installation.
+Experiment 5 requires dig; edit the executable path at the top of its script if needed. Regenerating plots requires matplotlib and numpy. Experiments 2–5 overwrite their CSVs when rerun, so measurements may differ; Experiment 1 saves each run to a dated file. The experiments query DNS servers starting at the root rather than forwarding queries to a public recursive resolver.
 
-Some experiments overwrite existing CSV results when re-run; experiment 1 writes a timestamped output file. Review the scripts before running them if you need to preserve the recorded results.
+**Interpreting results:** The approximately 0.01 ms warm figure measures an in-process cache lookup, not a full DNS request over a socket. Experiments 2–5 are single runs on one network, not universal performance guarantees.
 
-## Run the tests
+---
 
-Run the full test suite:
+## 8. Known limitations
 
-```bash
-python -m pytest tests/ -q
-```
+- **IPv4-only upstream transport.** Root and authoritative servers are queried over IPv4, and only A glue is used. AAAA record lookups are supported, but upstream DNS transport does not use IPv6.
+- **No EDNS0 or DNSSEC.** Local server replies use a 512-byte UDP budget; the resolver can read upstream responses up to 4096 bytes.
+- **UDP-only local server.** For responses larger than 512 bytes, the server sets TC and sends no records. A client retrying over TCP cannot receive the response because there is no local TCP listener.
+- **Minimal response sections.** The server omits the authority section, so NXDOMAIN responses have no SOA. SOA records are not packed into server replies; unsupported types receive empty NOERROR.
+- **Serial lookup processing.** The cache is not thread-safe, so lookups are serialized with a lock. A slow cold lookup delays other clients; this is intended for one machine, not a high-traffic resolver.
+- **Limited record coverage.** Supported types are A, NS, CNAME, SOA, MX, TXT, and AAAA, class IN only. SOA data is shown as raw hexadecimal; IPv6 addresses are printed without zero compression.
+- **Network-dependent failures.** In the test network, yandex.ru failed and westus-0.in.applicationinsights.azure.com returned SERVFAIL. The precise causes were not conclusively established.
+- **Internal coupling.** DelegatingResolver uses IterativeResolver internals such as _Context, _NameServer, and _extract_referral. Renaming them may require updates in cache.py.
 
-Run an individual test module:
+RootRunner is an educational project, not a hardened production DNS service. Avoid exposing it to untrusted networks.
 
-```bash
-python -m pytest tests/test_parser.py -q
-python -m pytest tests/test_resolver.py -q
-python -m pytest tests/test_cache.py -q
-python -m pytest tests/test_server.py -q
-```
+---
 
-Run tests with coverage reporting:
+## 9. Repository layout
 
-```bash
-python -m pytest tests/ --cov=src/dns_resolver --cov-report=term-missing
-```
-
-The tests cover DNS parsing and encoding, resolver behaviour, cache TTL/eviction/statistics, delegation caching, and local server responses. Resolver tests use a fake DNS network so most behaviours can be tested without relying on live public DNS infrastructure.
-
-## Project structure
-
-```text
+~~~text
 RootRunner/
-├── src/
-│   └── dns_resolver/
-│       ├── parser.py             # DNS wire-format parser and encoder
-│       ├── resolver.py           # Iterative resolution and server selection
-│       ├── cache.py              # Answer cache and delegation cache
-│       └── server.py             # Local UDP DNS server
-├── tests/
-│   ├── test_parser.py
-│   ├── test_resolver.py
-│   ├── test_cache.py
-│   └── test_server.py
-├── scripts/
-│   └── capture_real_response.py # Capture live DNS packets for parser testing
+├── src/dns_resolver/
+│   ├── parser.py        # DNS wire format: DNSParser, DNSEncoder, format_rdata
+│   ├── resolver.py      # IterativeResolver, ServerSelector, CLI
+│   ├── cache.py         # CachingResolver, DelegatingResolver, DelegationCache
+│   └── server.py        # Local UDP DNS server
+├── tests/               # Offline unit tests
 ├── experiments/
 │   ├── exp1_cold_warm.py
 │   ├── exp2_many_sites.py
@@ -422,69 +367,26 @@ RootRunner/
 │   ├── exp5_vs_dig.py
 │   ├── make_plots.py
 │   ├── filter_server_log.py
-│   ├── RESULTS.md
-│   ├── plots/                   # Generated experiment plots
-│   ├── results/                 # Recorded CSVs and replay trace
-│   └── validation/              # Browser-validation screenshots
-├── docs/
-│   └── responses/               # Captured DNS response samples
+│   ├── results/         # CSVs and replay trace
+│   ├── plots/           # PNG plots
+│   ├── validation/      # Windows browsing validation screenshots
+│   └── RESULTS.md       # Full experiment report
+├── scripts/
+│   └── capture_real_response.py
+├── docs/responses/      # Captured DNS response packets
 ├── requirements.txt
-├── pytest.ini
-└── README.md
-```
-
-## Current limitations
-
-RootRunner is a learning and experimentation project. Important limitations documented in the repository include:
-
-- **IPv4 upstream transport:** the iterative resolver's upstream nameserver transport uses IPv4 addresses. AAAA queries retrieve IPv6 records, but that does not mean upstream nameserver connections use IPv6.
-- **Local server is UDP-only:** it does not implement a TCP listener. Responses exceeding the 512-byte UDP limit are truncated, and clients that retry over TCP will not get a TCP answer from this server.
-- **No EDNS or DNSSEC validation:** the local server emits plain DNS responses capped at 512 bytes; DNSSEC validation is not implemented.
-- **Minimal authority section in server replies:** the server does not include SOA authority records in its client replies, including for negative answers.
-- **Limited record-type support:** the parser supports A, AAAA, NS, CNAME, SOA, MX, and TXT. Unsupported types receive an empty NOERROR response from server mode.
-- **Single lookup at a time through the cache:** the server uses a lock around cache access because the cache is not thread-safe. Slow cold lookups can make concurrent requests wait.
-- **Network-dependent outcomes:** firewalls, DNS interception, unreachable authoritative servers, and network policies can change results.
-- **Experimental performance evidence:** most measurements are from one machine/network and several experiments have only one recorded run.
-
-These constraints are worth addressing before considering production deployment.
-
-## Troubleshooting
-
-### Resolution times out or fails
-
-- Confirm that your network allows outbound DNS requests to port 53.
-- Try a longer timeout, for example `--timeout 3` in the resolver CLI.
-- Use `--trace` to see which zone and nameserver attempts failed.
-- Some networks intercept or block direct queries to root and authoritative nameservers; a normal browser lookup can work even when iterative resolution cannot.
-
-### The local server cannot bind to port 53
-
-- Port 53 may already be occupied by another DNS service.
-- The operating system may require elevated privileges to bind to that port.
-- Try a high port such as 5353 and query it explicitly with `nslookup -port=5353 github.com 127.0.0.1`.
-
-### Browser traffic does not appear in the server log
-
-- First test with `nslookup github.com 127.0.0.1`.
-- Check whether the browser's Secure DNS / DNS-over-HTTPS option bypasses system DNS.
-- If testing system-wide DNS, verify the configured DNS address and restore the previous setting when finished.
-
-### The comparison experiment cannot find `dig`
-
-Edit the `DIG` path near the top of `experiments/exp5_vs_dig.py` to match the installed executable. The script uses `dig -4 +trace +nodnssec`.
-
-## Contributing
-
-Contributions that improve correctness, tests, documentation, portability, or measurement quality are welcome.
-
-1. Fork the repository.
-2. Create a focused branch: `git checkout -b docs/describe-feature`.
-3. Make the change and add or update tests when appropriate.
-4. Run `python -m pytest tests/ -q`.
-5. Open a pull request describing the change, the reason for it, and how it was tested.
-
-For resolver changes, include edge cases such as malformed responses, timeouts, referrals without glue, CNAME loops, negative answers, and TTL expiry where relevant. For performance claims, document the test environment and preserve the raw measurements needed to reproduce the result.
+└── pytest.ini
+~~~
 
 ---
 
-Built as an academic project to explore DNS internals, caching, and resolver behaviour.
+## 10. Team
+
+| Component | Owner |
+|---|---|
+| DNS wire-format parser and encoder (parser.py) | Piyush Bisoi |
+| Iterative resolution and server selection (resolver.py) | Ayush Kumar |
+| Caching and TTL handling (cache.py) | Bibhu Biswal |
+| Experiments, plots, server mode, and OS validation (experiments/, server.py) | Aryaman Padhi |
+
+Based primarily on **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
