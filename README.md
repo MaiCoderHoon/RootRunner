@@ -4,7 +4,7 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white" alt="Python 3.12 and 3.13"></a>
   <a href="https://github.com/MaiCoderHoon/RootRunner/stargazers"><img src="https://img.shields.io/github/stars/MaiCoderHoon/RootRunner?style=flat" alt="GitHub stars"></a>
   <a href="https://github.com/MaiCoderHoon/RootRunner/issues"><img src="https://img.shields.io/github/issues/MaiCoderHoon/RootRunner?style=flat" alt="Open issues"></a>
-  <a href="https://img.shields.io/github/last-commit/MaiCoderHoon/RootRunner"><img src="https://img.shields.io/github/last-commit/MaiCoderHoon/RootRunner?style=flat" alt="Last commit"></a>
+  <a href="https://github.com/MaiCoderHoon/RootRunner/commits/main"><img src="https://img.shields.io/github/last-commit/MaiCoderHoon/RootRunner?style=flat" alt="Last commit"></a>
 </p>
 
 <p align="center"><strong>DNS resolution, from the root servers up — implemented from scratch in Python.</strong></p>
@@ -384,6 +384,16 @@ RootRunner/
 ├── requirements.txt
 └── pytest.ini
 ~~~
+
+
+## 10. Contributors
+
+RootRunner was built collaboratively, with contributions across DNS packet handling, iterative resolution, caching, and performance evaluation.
+
+- **Piyush Bisoi** — DNS packet parser and encoder.
+- **Ayush Kumar** — Iterative resolution and nameserver selection.
+- **Bibhu Biswal** — Answer caching, delegation caching, and TTL handling.
+- **Aryaman Padhi** — Performance experiments, plots, local DNS server validation, and operating-system testing.
 
 ---
 RootRunner implements core DNS behaviour informed by **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
