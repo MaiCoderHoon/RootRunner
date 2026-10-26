@@ -32,7 +32,6 @@ A cold lookup commonly takes about three queries (root, TLD, authoritative) and 
 7. [Performance evaluation](#7-performance-evaluation)
 8. [Known limitations](#8-known-limitations)
 9. [Repository layout](#9-repository-layout)
-10. [Contributors](#10-contributors)
 
 ---
 
@@ -385,15 +384,6 @@ RootRunner/
 └── pytest.ini
 ~~~
 
-
-## 10. Contributors
-
-RootRunner was built collaboratively, with contributions across DNS packet handling, iterative resolution, caching, and performance evaluation.
-
-- **Piyush Bisoi** — DNS packet parser and encoder.
-- **Ayush Kumar** — Iterative resolution and nameserver selection.
-- **Bibhu Biswal** — Answer caching, delegation caching, and TTL handling.
-- **Aryaman Padhi** — Performance experiments, plots, local DNS server validation, and operating-system testing.
 
 ---
 RootRunner implements core DNS behaviour informed by **RFC 1035** (DNS implementation and specification) and **RFC 2308** (negative caching). The root nameserver list is published by [IANA](https://www.iana.org/domains/root/servers).
