@@ -359,7 +359,7 @@ python -m src.dns_resolver.server
 # Use an unprivileged port
 python -m src.dns_resolver.server --port 5353
 
-# Configure the hosts file option
+# Listen only on IPv4 loopback (instead of the default IPv4 + IPv6)
 python -m src.dns_resolver.server --hosts 127.0.0.1
 ```
 
