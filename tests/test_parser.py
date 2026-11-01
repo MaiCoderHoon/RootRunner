@@ -64,7 +64,7 @@ class TestDNSHeader:
         header = parser._parse_header()
 
         assert header.id == 42
-        assert header.qr == True  # Response
+        assert header.qr is True  # Response
         assert header.rd == True
         assert header.ra == True
         assert header.rcode == ResponseCode.NOERROR
@@ -309,7 +309,7 @@ class TestRealDNSResponses:
         parser = DNSParser()
         header, questions, answers, authority, additional = parser.parse_message(data)
 
-        assert header.qr == True
+        assert header.qr is True
         assert header.rcode == ResponseCode.NOERROR
         assert questions[0].qname == "google.com"
         assert len(answers) >= 1
@@ -334,7 +334,7 @@ class TestRealDNSResponses:
         parser = DNSParser()
         header, questions, answers, authority, additional = parser.parse_message(data)
 
-        assert header.qr == True
+        assert header.qr is True
         assert questions[0].qname == "github.com"
         assert len(answers) >= 1
 
@@ -358,7 +358,7 @@ class TestRealDNSResponses:
         parser = DNSParser()
         header, questions, answers, authority, additional = parser.parse_message(data)
 
-        assert header.qr == True
+        assert header.qr is True
         assert header.rcode == ResponseCode.NOERROR
         assert questions[0].qname == "google.com"
         assert len(answers) >= 1
@@ -398,7 +398,7 @@ class TestDNSEncoder:
 
     def test_encode_header(self):
         """Encoding a header should be the exact reverse of parsing it"""
-        from src.dns_resolver.parser import DNSEncoder, DNSHeader, ResponseCode
+        from src.dns_resolver.parser import DNSEncoder, ResponseCode
 
         header = DNSHeader(
             id=1,
@@ -429,7 +429,6 @@ class TestDNSEncoder:
         """Encoding a question should round-trip through the parser correctly"""
         from src.dns_resolver.parser import (
             DNSEncoder,
-            DNSQuestion,
             RecordType,
             RecordClass,
         )
@@ -452,8 +451,6 @@ class TestDNSEncoder:
         """Build a complete query, encode it, then parse it back — full round trip"""
         from src.dns_resolver.parser import (
             DNSEncoder,
-            DNSHeader,
-            DNSQuestion,
             RecordType,
             RecordClass,
             ResponseCode,
@@ -487,7 +484,7 @@ class TestDNSEncoder:
         )
 
         assert parsed_header.id == 1234
-        assert parsed_header.rd == True
+        assert parsed_header.rd is True
         assert len(parsed_questions) == 1
         assert parsed_questions[0].qname == "google.com"
         assert parsed_questions[0].qtype == RecordType.A
