@@ -14,7 +14,6 @@ import struct
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 from enum import IntEnum
-from unicodedata import name
 
 
 # DNS Record Types
@@ -187,7 +186,7 @@ class DNSParser:
 
     def _parse_record(self) -> DNSRecord:
         """Parse a resource record (answer, authority, additional)"""
-        name = self._parse_name()
+        parsed_name = self._parse_name()
         type_val, cls_val, ttl = struct.unpack("!HHI", self._read_bytes(8))
         rdlen = struct.unpack("!H", self._read_bytes(2))[0]
         rdata_offset = self.offset  # <-- NEW: remember where rdata starts
@@ -257,7 +256,11 @@ class DNSParser:
     # - encode_record()
 
     def parse_name_at(self, packet: bytes, offset: int) -> str:
-        """Parse a domain name starting at a specific offset within a given packet.Used for names embedded in RDATA (NS, CNAME, MX) that may contain compression pointers back into the full packet."""
+        """Parse a domain name at a specific offset in a packet.
+
+        Used for names embedded in RDATA (NS, CNAME, MX) that may contain
+        compression pointers back into the full packet.
+        """
         saved_packet = self.packet
         saved_offset = self.offset
         self.packet = packet
@@ -265,7 +268,7 @@ class DNSParser:
         name = self._parse_name()
         self.packet = saved_packet
         self.offset = saved_offset
-        return name
+        return parsed_name
 
 
 class DNSEncoder:
@@ -279,7 +282,7 @@ class DNSEncoder:
     # This will be used by Ayush to construct queries
 
     def encode_name(self, name: str) -> bytes:
-        """Encode a domain name into DNS wire format, using compression pointers when a suffix has already been written earlier in the packet."""
+        """Encode a domain name, using pointers for previously written suffixes."""
         if name == "":
             return b"\x00"  # root domain
 
@@ -291,7 +294,7 @@ class DNSEncoder:
             current_offset = len(self.packet) + len(encoded)
 
             if suffix in self.name_offsets:
-                # We've seen this suffix before — write a pointer instead of repeating it
+                # Reuse a previously written suffix with a compression pointer.
                 pointer_offset = self.name_offsets[suffix]
                 pointer = 0xC000 | pointer_offset  # top 2 bits = 11, rest = offset
                 encoded += struct.pack("!H", pointer)
@@ -351,7 +354,7 @@ class DNSEncoder:
     # Utility functions
     """
     Format RDATA for display based on record type.
-    
+
     packet and rdata_offset are needed for NS/CNAME/MX since their
     names may contain compression pointers into the full packet.
     """
