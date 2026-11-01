@@ -198,7 +198,8 @@ class DelegatingResolver(IterativeResolver):
         except ResolutionError as first_error:
             if not seeded:
                 raise
-            # Cached delegations may be stale: forget the ones this walk used, retry cold.
+            # Cached delegations may be stale: forget the ones this walk
+            # used, then retry cold.
             used = {step.zone for step in first_error.trace}
             for zone in seeded:
                 if zone in used:
