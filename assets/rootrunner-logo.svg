@@ -1,12 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
 <title id="title">RootRunner</title>
-<desc id="desc">RootRunner text wordmark, with Root in white and Runner in purple.</desc>
+<desc id="desc">RootRunner pixel network wordmark, with a three-pixel rising motif, Root in white and Runner in purple.</desc>
 <defs>
   <linearGradient id="purple" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#bd55ff"/>
-    <stop offset="1" stop-color="#8e35e8"/>
+    <stop offset="0" stop-color="#c45aff"/>
+    <stop offset="1" stop-color="#9638e8"/>
   </linearGradient>
 </defs>
 <rect width="1200" height="260" fill="#050506"/>
-<text x="600" y="174" text-anchor="middle" fill="#f8f8fa" font-family="Inter, Arial, Helvetica, sans-serif" font-size="142" font-weight="750" letter-spacing="-5">Root<tspan fill="url(#purple)">Runner</tspan></text>
+<!-- Three connected pixel nodes suggest DNS hops through the network -->
+<g fill="url(#purple)">
+  <rect x="92" y="142" width="42" height="42" rx="2"/>
+  <rect x="142" y="92" width="42" height="42" rx="2"/>
+  <rect x="192" y="42" width="42" height="42" rx="2"/>
+</g>
+<text x="275" y="174" fill="#f8f8fa" font-family="Inter, Arial, Helvetica, sans-serif" font-size="142" font-weight="750" letter-spacing="-5">Root<tspan fill="url(#purple)">Runner</tspan></text>
 </svg>
