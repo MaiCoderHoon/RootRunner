@@ -67,6 +67,35 @@ class TestDNSHeader:
 
 class TestDNSNameParsing:
     """Test domain name parsing with compression pointers"""
+    def test_parse_name_rejects_truncated_label(self):
+        parser = DNSParser()
+        parser.packet = b"\\x05ab"
+        parser.offset = 0
+        with pytest.raises((IndexError, UnicodeDecodeError, struct.error, ValueError)):
+            parser._parse_name()
+
+    def test_parse_name_rejects_truncated_compression_pointer(self):
+        parser = DNSParser()
+        parser.packet = b"\\xc0"
+        parser.offset = 0
+        with pytest.raises((IndexError, struct.error, ValueError)):
+            parser._parse_name()
+
+    def test_parse_name_rejects_pointer_outside_packet(self):
+        parser = DNSParser()
+        parser.packet = b"\\xc0\\xff"
+        parser.offset = 0
+        with pytest.raises((IndexError, RecursionError, ValueError)):
+            parser._parse_name()
+
+    def test_parse_name_rejects_compression_pointer_loop(self):
+        # Offset 0 points back to itself.
+        parser = DNSParser()
+        parser.packet = b"\\xc0\\x00"
+        parser.offset = 0
+        with pytest.raises((RecursionError, IndexError, ValueError)):
+            parser._parse_name()
+
 
     def test_parse_simple_name(self):
         """Parse a simple uncompressed name"""
