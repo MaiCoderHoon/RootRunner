@@ -13,6 +13,9 @@
 
 <p align="center"><strong>DNS resolution, from the root servers up — implemented from scratch in Python.</strong></p>
 
+<p align="center">[![Tests](https://github.com/MaiCoderHoon/RootRunner/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MaiCoderHoon/RootRunner/actions/workflows/tests.yml)</p>
+
+
 RootRunner is an iterative DNS resolver with TTL-aware caching, RTT-based nameserver selection, and a local UDP DNS server. It starts at the root nameservers, follows referrals through TLD servers, and reaches authoritative nameservers rather than forwarding the query to a public recursive resolver.
 
 **At a glance:** iterative resolution · positive and negative caching · delegation caching · CNAME handling · packet parsing and encoding · command-line tracing
