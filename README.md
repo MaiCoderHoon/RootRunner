@@ -1,6 +1,10 @@
 # RootRunner
 
 <p align="center">
+  <img src="assets/rootrunner-logo.svg" alt="RootRunner — Iterative DNS Resolver with Caching" width="100%">
+</p>
+
+<p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white" alt="Python 3.12 and 3.13"></a>
   <a href="https://github.com/MaiCoderHoon/RootRunner/stargazers"><img src="https://img.shields.io/github/stars/MaiCoderHoon/RootRunner?style=flat" alt="GitHub stars"></a>
   <a href="https://github.com/MaiCoderHoon/RootRunner/issues"><img src="https://img.shields.io/github/issues/MaiCoderHoon/RootRunner?style=flat" alt="Open issues"></a>
