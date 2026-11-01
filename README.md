@@ -36,6 +36,36 @@ A cold lookup commonly takes about three queries (root, TLD, authoritative) and 
 7. [Performance evaluation](#7-performance-evaluation)
 8. [Known limitations](#8-known-limitations)
 9. [Repository layout](#9-repository-layout)
+10. [DNS quest](#dns-quest)
+
+---
+
+## DNS quest
+
+**Can you trace a domain from the root to its authoritative nameserver?**
+
+A small, hands-on challenge board inspired by GitHub's *Game Mode* profile READMEs. Each level uses a real RootRunner command or API call—no simulated results or external game service.
+
+| Level | Mission | Try it | What to look for |
+|---|---|---|---|
+| 01 · First lookup | Resolve an IPv4 address | `python -m src.dns_resolver.resolver github.com A` | A successful answer and the number of hops. |
+| 02 · Follow the trail | Inspect the nameserver path | `python -m src.dns_resolver.resolver github.com NS --trace` | The queried servers, zones, outcomes, and RTTs. |
+| 03 · The missing domain | Handle a name that does not exist | `python -m src.dns_resolver.resolver doesnotexist-xyz123.com --trace` | The response code and how the resolver handles the negative answer. |
+| 04 · Cache speedrun | Compare the first and second lookup | Use the caching example in [Resolve with caching](#resolve-with-caching). | A first lookup marked MISS, then a HIT with no upstream DNS queries. |
+| 05 · Research mode | Reproduce the performance study | Run the commands in [Performance evaluation](#7-performance-evaluation). | Cold/warm latency, query counts, cache hit ratio, and failure handling. |
+
+<details>
+<summary><strong>Quest checklist</strong> · tick these off as you complete them</summary>
+
+- [ ] **Level 01:** Get a DNS answer.
+- [ ] **Level 02:** Explain the root → TLD → authoritative referral path.
+- [ ] **Level 03:** Explain the difference between NXDOMAIN and a resolver failure.
+- [ ] **Level 04:** Demonstrate a cache hit and explain TTL countdown.
+- [ ] **Level 05:** Reproduce at least one experiment and interpret its result.
+
+**Bonus challenge:** Run the local DNS server and query it with `nslookup`. See [Local DNS server](#4-local-dns-server) for setup and safety notes.
+
+</details>
 
 ---
 
