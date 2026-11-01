@@ -315,10 +315,10 @@ class TestRealDNSResponses:
         assert len(answers) >= 1
 
         for ans in answers:
-            print(
-                f"{ans.name} {ans.ttl} IN {ans.type.name} "
-                f"{format_rdata(ans.type, ans.rdata, packet=data, rdata_offset=ans.rdata_offset)}"
+            formatted = format_rdata(
+                ans.type, ans.rdata, packet=data, rdata_offset=ans.rdata_offset
             )
+            print(f"{ans.name} {ans.ttl} IN {ans.type.name} {formatted}")
 
     def test_parse_github_ns_response(self):
         """Parse real response for github.com NS query"""
@@ -393,7 +393,7 @@ class TestDNSEncoder:
         encoder.packet += first  # simulate writing it into the real packet
 
         second = encoder.encode_name("www.google.com")
-        # "www" written as label, then pointer back to offset 0 (where google.com started)
+        # "www" label followed by a pointer to offset 0 (google.com).
         assert second == b"\x03www" + struct.pack("!H", 0xC000)
 
     def test_encode_header(self):
