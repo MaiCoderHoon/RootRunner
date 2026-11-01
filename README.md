@@ -37,6 +37,7 @@ A cold lookup commonly takes about three queries (root, TLD, authoritative) and 
 8. [Known limitations](#8-known-limitations)
 9. [Repository layout](#9-repository-layout)
 10. [DNS quest](#dns-quest)
+11. [Project showcase](#project-showcase)
 
 ---
 
@@ -66,6 +67,81 @@ A small, hands-on challenge board inspired by GitHub's *Game Mode* profile READM
 **Bonus challenge:** Run the local DNS server and query it with `nslookup`. See [Local DNS server](#4-local-dns-server) for setup and safety notes.
 
 </details>
+
+---
+
+## Project showcase
+
+### See RootRunner in action
+
+A minimal terminal walkthrough: resolve a name, inspect the iterative path, then use the caching API to repeat a lookup without another upstream walk.
+
+~~~console
+$ python -m src.dns_resolver.resolver github.com A
+;; github.com A: NOERROR, 3 hop(s)
+github.com                     60      A      20.207.73.82
+~~~
+
+~~~bash
+# Inspect the nameserver walk
+python -m src.dns_resolver.resolver github.com NS --trace
+
+# Run the offline test suite
+python -m pytest tests/ -q
+~~~
+
+The output above is a captured example from the project README; DNS answers and timings can change as records and network conditions change.
+
+### Built for the DNS journey
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>🌐 Iterative resolution</strong><br>
+      Walk from root to TLD to authoritative nameservers. Queries are sent with RD=0.
+    </td>
+    <td width="50%">
+      <strong>⚡ TTL-aware caching</strong><br>
+      Cache positive and negative answers, plus delegation and glue data.
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>🧭 Referral handling</strong><br>
+      Follow delegations, use glue where available, and resolve glueless nameservers when needed.
+    </td>
+    <td>
+      <strong>🔁 CNAME chains</strong><br>
+      Follow canonical names, including chains that cross zone boundaries.
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>📡 RTT-aware selection</strong><br>
+      Track smoothed server response times and retry alternate nameservers after failures.
+    </td>
+    <td>
+      <strong>🔬 Wire-format parsing</strong><br>
+      Parse DNS messages, supported record types, and compressed domain names.
+    </td>
+  </tr>
+</table>
+
+### Follow a cold lookup
+
+~~~mermaid
+flowchart TD
+    Q(["Client asks for github.com / A"]) --> C{"Answer in cache?"}
+    C -- Yes --> HIT(["Return cached answer"])
+    C -- No --> R["Query a root nameserver"]
+    R --> T["Follow .com referral"]
+    T --> A["Query github.com authoritative nameserver"]
+    A --> V["Validate response and process answer / CNAME"]
+    V --> S["Store answer using its TTL"]
+    S --> OUT(["Return DNS response"])
+~~~
+
+A warm lookup can return directly from the answer cache. A cold lookup follows referrals; a delegation-cache hit may let a later lookup start below the root.
 
 ---
 
@@ -371,6 +447,46 @@ python -m experiments.make_plots
 Experiment 5 requires dig; edit the executable path at the top of its script if needed. Regenerating plots requires matplotlib and numpy. Experiments 2–5 overwrite their CSVs when rerun, so measurements may differ; Experiment 1 saves each run to a dated file. The experiments query DNS servers starting at the root rather than forwarding queries to a public recursive resolver.
 
 **Interpreting results:** The approximately 0.01 ms warm figure measures an in-process cache lookup, not a full DNS request over a socket. Experiments 2–5 are single runs on one network, not universal performance guarantees.
+
+### Performance at a glance
+
+These plots are generated from the experiment CSVs in this repository. They show the measured behaviour, including the limitations described in the full [results report](experiments/RESULTS.md).
+
+<details open>
+<summary><strong>Experiment 1 · Cold vs. warm lookup latency</strong></summary>
+
+![Cold versus warm lookup latency](experiments/plots/exp1_cold_vs_warm.png)
+
+</details>
+
+<details>
+<summary><strong>Experiment 2 · Queries per lookup with delegation caching</strong></summary>
+
+![Queries per lookup](experiments/plots/exp2_queries_per_lookup.png)
+
+</details>
+
+<details>
+<summary><strong>Experiment 3 · Cache hit ratio over a replayed trace</strong></summary>
+
+![Cache hit ratio](experiments/plots/exp3_hit_ratio.png)
+
+</details>
+
+<details>
+<summary><strong>Experiment 4 · Simulated unavailable nameservers</strong></summary>
+
+![Simulated dead server experiment](experiments/plots/exp4_dead_server.png)
+
+</details>
+
+<details>
+<summary><strong>Experiment 5 · Query count compared with dig +trace</strong></summary>
+
+![RootRunner versus dig query counts](experiments/plots/exp5_vs_dig.png)
+
+</details>
+
 
 ---
 
