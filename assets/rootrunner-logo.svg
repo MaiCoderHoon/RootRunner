@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="420" viewBox="0 0 1400 420" role="img" aria-labelledby="title desc">
+<title id="title">RootRunner</title><desc id="desc">RootRunner iterative DNS resolver logo with a layered DNS network symbol.</desc>
+<defs>
+  <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d65cff"/><stop offset="1" stop-color="#8b35d8"/></linearGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171725"/><stop offset="1" stop-color="#090910"/></linearGradient>
+  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1400" height="420" rx="22" fill="#08080d"/>
+<g transform="translate(80 48)" stroke-linejoin="round">
+  <path d="M190 12 365 110 190 210 15 110Z" fill="#171022" stroke="url(#violet)" stroke-width="5"/>
+  <path d="M190 12v150M107 59c40 29 126 29 166 0M119 51c-24 38-24 88 0 126M261 51c24 38 24 88 0 126" fill="none" stroke="#f4efff" stroke-width="3" opacity=".92"/>
+  <path d="M190 210v24m0 0-45 28m45-28 45 28m-45-28v28" fill="none" stroke="#f4efff" stroke-width="5"/>
+  <rect x="137" y="258" width="16" height="16" rx="3" fill="#f4efff"/><rect x="182" y="258" width="16" height="16" rx="3" fill="#f4efff"/><rect x="227" y="258" width="16" height="16" rx="3" fill="#f4efff"/>
+  <path d="M190 222 365 320 190 418 15 320Z" fill="url(#panel)" stroke="#d9d9e5" stroke-width="4" opacity=".92" transform="translate(0 -72)"/>
+  <path d="M190 274 365 372 190 470 15 372Z" fill="url(#panel)" stroke="#d9d9e5" stroke-width="4" opacity=".98" transform="translate(0 -72)"/>
+  <rect x="250" y="330" width="14" height="14" rx="2" fill="#f4efff"/><rect x="283" y="311" width="14" height="14" rx="2" fill="#f4efff"/><rect x="316" y="292" width="14" height="14" rx="2" fill="url(#violet)"/>
+</g>
+<path d="M520 72v276" stroke="#777384" stroke-width="2"/>
+<text x="590" y="225" fill="#f7f6fb" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="800" letter-spacing="-5">Root<tspan fill="url(#violet)">Runner</tspan></text>
+<path d="M595 267h30m750 0h30" stroke="#a94be9" stroke-width="4"/>
+<text x="665" y="282" fill="#c8c5d1" font-family="Arial, Helvetica, sans-serif" font-size="25" letter-spacing="7">ITERATIVE DNS RESOLVER WITH CACHING</text>
+</svg>
