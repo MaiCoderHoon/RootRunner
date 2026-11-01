@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">RootRunner DNS resolution journey</title>
+  <desc id="desc">A query checks the answer cache, then follows referrals from a root nameserver to a TLD nameserver and finally an authoritative nameserver. The answer is returned and cached.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#101018"/><stop offset="1" stop-color="#191326"/></linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L9 3 L0 6" fill="none" stroke="#9b8cff" stroke-width="1.5"/></marker>
+    <style>
+      .label{font:600 15px 'Segoe UI',Arial,sans-serif;fill:#f5f3ff}
+      .sub{font:12px 'Segoe UI',Arial,sans-serif;fill:#b8b2c9}
+      .tiny{font:11px 'Segoe UI',Arial,sans-serif;fill:#c9c3d8}
+      .node{fill:#211d30;stroke:#6554a4;stroke-width:1.5}
+      .accent{fill:#d461cb}
+      .line{stroke:#9b8cff;stroke-width:2;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="360" rx="22" fill="url(#bg)"/>
+  <text x="42" y="42" class="tiny" letter-spacing="2">ROOTRUNNER / ITERATIVE DNS WALK</text>
+  <text x="42" y="77" class="label" font-size="22">From a question to an authoritative answer</text>
+  <rect x="42" y="130" width="150" height="86" rx="12" class="node"/>
+  <text x="117" y="163" text-anchor="middle" class="label">Client query</text><text x="117" y="187" text-anchor="middle" class="sub">github.com · A</text>
+  <path d="M192 173 H236" class="line"/>
+  <rect x="242" y="130" width="150" height="86" rx="12" class="node"/>
+  <text x="317" y="163" text-anchor="middle" class="label">Answer cache</text><text x="317" y="187" text-anchor="middle" class="sub">MISS · cold lookup</text>
+  <path d="M392 173 H436" class="line"/>
+  <rect x="442" y="130" width="150" height="86" rx="12" class="node"/>
+  <text x="517" y="163" text-anchor="middle" class="label">Root server</text><text x="517" y="187" text-anchor="middle" class="sub">Referral to .com</text>
+  <path d="M592 173 H636" class="line"/>
+  <rect x="642" y="130" width="150" height="86" rx="12" class="node"/>
+  <text x="717" y="163" text-anchor="middle" class="label">TLD server</text><text x="717" y="187" text-anchor="middle" class="sub">Referral to zone</text>
+  <path d="M792 173 H836" class="line"/>
+  <rect x="842" y="130" width="150" height="86" rx="12" class="node"/>
+  <text x="917" y="163" text-anchor="middle" class="label">Authoritative</text><text x="917" y="187" text-anchor="middle" class="sub">Answer returned</text>
+  <path d="M992 173 H1036" class="line"/>
+  <rect x="1042" y="130" width="116" height="86" rx="12" fill="#2b2037" stroke="#d461cb" stroke-width="1.5"/>
+  <text x="1100" y="163" text-anchor="middle" class="label">Cache</text><text x="1100" y="187" text-anchor="middle" class="sub">Store by TTL</text>
+  <text x="317" y="245" text-anchor="middle" class="tiny">Warm lookups can return here</text>
+  <path d="M317 216 V270 H117 V222" fill="none" stroke="#d461cb" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="117" y="300" class="tiny">RD=0 · RootRunner follows referrals itself</text>
+  <text x="1158" y="330" text-anchor="end" class="tiny">Conceptual flow · actual referrals and hop count vary</text>
+</svg>
