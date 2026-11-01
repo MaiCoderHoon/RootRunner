@@ -193,7 +193,7 @@ class DNSParser:
         rdata = self._read_bytes(rdlen)
 
         return DNSRecord(
-            name=name,
+            name=parsed_name,
             type=RecordType(type_val),
             cls=RecordClass(cls_val),
             ttl=ttl,
@@ -265,7 +265,7 @@ class DNSParser:
         saved_offset = self.offset
         self.packet = packet
         self.offset = offset
-        name = self._parse_name()
+        parsed_name = self._parse_name()
         self.packet = saved_packet
         self.offset = saved_offset
         return parsed_name
