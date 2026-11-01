@@ -21,7 +21,7 @@ from .cache import CachingResolver
 from .parser import DNSEncoder, DNSHeader, RecordType, ResponseCode
 from .resolver import ResolutionError
 
-MAX_UDP = 512   # plain dns over udp, no edns
+MAX_UDP = 512  # plain dns over udp, no edns
 
 
 def read_question(packet):
@@ -39,13 +39,13 @@ def read_question(packet):
         if n == 0:
             i += 1
             break
-        if n & 0xC0:          # pointer inside a question, real clients never do this
+        if n & 0xC0:  # pointer inside a question, real clients never do this
             return None
-        labels.append(packet[i + 1:i + 1 + n].decode("ascii", errors="replace"))
+        labels.append(packet[i + 1 : i + 1 + n].decode("ascii", errors="replace"))
         i += 1 + n
     if i + 4 > len(packet):
         return None
-    qtype, qclass = struct.unpack("!HH", packet[i:i + 4])
+    qtype, qclass = struct.unpack("!HH", packet[i : i + 4])
     return ".".join(labels), qtype, qclass
 
 
@@ -61,14 +61,16 @@ def pack_record(enc, rr):
         txt = rr.data.encode()[:255]
         rdata = bytes([len(txt)]) + txt
     elif rr.type in (RecordType.CNAME, RecordType.NS, RecordType.MX):
-        rdata = None   # has a name inside, written below
+        rdata = None  # has a name inside, written below
     else:
-        return None    # SOA etc - skip
+        return None  # SOA etc - skip
 
     name = enc.encode_name(rr.name.rstrip("."))
     enc.packet += name
     fixed_at = len(enc.packet)
-    enc.packet += struct.pack("!HHIH", rr.type, 1, max(0, rr.ttl), 0)  # rdlength filled in below
+    enc.packet += struct.pack(
+        "!HHIH", rr.type, 1, max(0, rr.ttl), 0
+    )  # rdlength filled in below
 
     if rdata is None:
         if rr.type == RecordType.MX:
@@ -81,13 +83,17 @@ def pack_record(enc, rr):
         enc.packet += rdata
 
     rdlen = len(enc.packet) - (fixed_at + 10)
-    enc.packet = enc.packet[:fixed_at + 8] + struct.pack("!H", rdlen) + enc.packet[fixed_at + 10:]
+    enc.packet = (
+        enc.packet[: fixed_at + 8]
+        + struct.pack("!H", rdlen)
+        + enc.packet[fixed_at + 10 :]
+    )
     return True
 
 
 def build_reply(qid, opcode, rd, qname, qtype, qclass, rcode, answers=()):
     enc = DNSEncoder()
-    enc.packet = b"\x00" * 12      # space for the header, so offsets start at 12
+    enc.packet = b"\x00" * 12  # space for the header, so offsets start at 12
     enc.name_offsets = {}
     enc.packet += enc.encode_name(qname.rstrip("."))
     enc.packet += struct.pack("!HH", qtype, qclass)
@@ -104,8 +110,20 @@ def build_reply(qid, opcode, rd, qname, qtype, qclass, rcode, answers=()):
         enc.packet = enc.packet[:question_end]
         count, tc = 0, True
 
-    header = DNSHeader(id=qid, qr=True, opcode=opcode, aa=False, tc=tc, rd=rd, ra=True,
-                       rcode=rcode, qdcount=1, ancount=count, nscount=0, arcount=0)
+    header = DNSHeader(
+        id=qid,
+        qr=True,
+        opcode=opcode,
+        aa=False,
+        tc=tc,
+        rd=rd,
+        ra=True,
+        rcode=rcode,
+        qdcount=1,
+        ancount=count,
+        nscount=0,
+        arcount=0,
+    )
     return enc.encode_header(header) + enc.packet[12:]
 
 
@@ -121,7 +139,7 @@ class Server:
         if len(packet) < 12:
             return None
         qid, flags = struct.unpack("!HH", packet[:4])
-        if flags & 0x8000:          # that's a response, not a query
+        if flags & 0x8000:  # that's a response, not a query
             return None
         opcode = (flags >> 11) & 0xF
         rd = bool(flags & 0x0100)
@@ -131,14 +149,18 @@ class Server:
         qname, qtype, qclass = q
 
         if opcode != 0 or qclass != 1:
-            return build_reply(qid, opcode, rd, qname, qtype, qclass, ResponseCode.NOTIMP)
+            return build_reply(
+                qid, opcode, rd, qname, qtype, qclass, ResponseCode.NOTIMP
+            )
 
         try:
             rtype = RecordType(qtype)
         except ValueError:
             # type we dont support -> "name may exist, but no records of that type"
             self.say(qname, f"type{qtype}", "UNSUPPORTED", 0, "NOERROR")
-            return build_reply(qid, opcode, rd, qname, qtype, qclass, ResponseCode.NOERROR)
+            return build_reply(
+                qid, opcode, rd, qname, qtype, qclass, ResponseCode.NOERROR
+            )
 
         start = time.perf_counter()
         try:
@@ -146,19 +168,39 @@ class Server:
                 result = self.cache.resolve(qname, rtype)
                 outcome = self.cache.log[-1].outcome
         except (ResolutionError, ValueError) as err:
-            self.say(qname, rtype.name, "ERROR", (time.perf_counter() - start) * 1000, f"SERVFAIL ({err})")
-            return build_reply(qid, opcode, rd, qname, qtype, qclass, ResponseCode.SERVFAIL)
-        except Exception as err:   # never let one bad lookup kill the server
-            self.say(qname, rtype.name, "ERROR", (time.perf_counter() - start) * 1000, f"SERVFAIL ({err!r})")
-            return build_reply(qid, opcode, rd, qname, qtype, qclass, ResponseCode.SERVFAIL)
+            self.say(
+                qname,
+                rtype.name,
+                "ERROR",
+                (time.perf_counter() - start) * 1000,
+                f"SERVFAIL ({err})",
+            )
+            return build_reply(
+                qid, opcode, rd, qname, qtype, qclass, ResponseCode.SERVFAIL
+            )
+        except Exception as err:  # never let one bad lookup kill the server
+            self.say(
+                qname,
+                rtype.name,
+                "ERROR",
+                (time.perf_counter() - start) * 1000,
+                f"SERVFAIL ({err!r})",
+            )
+            return build_reply(
+                qid, opcode, rd, qname, qtype, qclass, ResponseCode.SERVFAIL
+            )
 
         ms = (time.perf_counter() - start) * 1000
         self.say(qname, rtype.name, outcome, ms, result.rcode.name)
-        return build_reply(qid, opcode, rd, qname, qtype, qclass, result.rcode, result.answers)
+        return build_reply(
+            qid, opcode, rd, qname, qtype, qclass, result.rcode, result.answers
+        )
 
     def say(self, name, qtype, outcome, ms, rcode):
         if self.verbose:
-            print(f"{time.strftime('%H:%M:%S')}  {name:40} {qtype:6} {outcome:12} {ms:8.1f} ms  {rcode}")
+            print(
+                f"{time.strftime('%H:%M:%S')}  {name:40} {qtype:6} {outcome:12} {ms:8.1f} ms  {rcode}"
+            )
 
 
 def serve_socket(sock, server, pool):
@@ -188,8 +230,12 @@ def serve_socket(sock, server, pool):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="DNS server mode for our resolver")
     ap.add_argument("--port", type=int, default=53)
-    ap.add_argument("--hosts", nargs="+", default=["127.0.0.1", "::1"],
-                    help="addresses to listen on (default: 127.0.0.1 and ::1)")
+    ap.add_argument(
+        "--hosts",
+        nargs="+",
+        default=["127.0.0.1", "::1"],
+        help="addresses to listen on (default: 127.0.0.1 and ::1)",
+    )
     ap.add_argument("--log", default="experiments/results/server_log.csv")
     args = ap.parse_args(argv)
 
@@ -206,7 +252,9 @@ def main(argv=None):
             s.close()
             continue
         socks.append(s)
-        threading.Thread(target=serve_socket, args=(s, server, pool), daemon=True).start()
+        threading.Thread(
+            target=serve_socket, args=(s, server, pool), daemon=True
+        ).start()
         print(f"listening on [{host}]:{args.port}")
 
     if not socks:

@@ -39,6 +39,7 @@ ResolutionError = _find("ResolutionError")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class FakeClock:
     def __init__(self, now=1000.0):
         self.now = now
@@ -74,8 +75,9 @@ def soa_hex(minimum):
     return "0161" * 5 + f"{1:08x}{2:08x}{3:08x}{4:08x}{minimum:08x}"
 
 
-def make_result(qname, qtype, answers=(), authority=(),
-                rcode=ResponseCode.NOERROR, queries=3):
+def make_result(
+    qname, qtype, answers=(), authority=(), rcode=ResponseCode.NOERROR, queries=3
+):
     return ResolutionResult(
         qname=qname,
         qtype=qtype,
@@ -89,14 +91,19 @@ def make_result(qname, qtype, answers=(), authority=(),
 
 
 def a_result(name="example.com", ttl=60, ip="1.2.3.4", queries=3):
-    return make_result(name, RecordType.A,
-                       answers=[rr(name, RecordType.A, ttl, ip)], queries=queries)
+    return make_result(
+        name, RecordType.A, answers=[rr(name, RecordType.A, ttl, ip)], queries=queries
+    )
 
 
 def nxdomain_result(name="nope.com", soa_ttl=900, minimum=900):
-    return make_result(name, RecordType.A, rcode=ResponseCode.NXDOMAIN,
-                       authority=[rr("com", RecordType.SOA, soa_ttl, soa_hex(minimum))],
-                       queries=2)
+    return make_result(
+        name,
+        RecordType.A,
+        rcode=ResponseCode.NXDOMAIN,
+        authority=[rr("com", RecordType.SOA, soa_ttl, soa_hex(minimum))],
+        queries=2,
+    )
 
 
 def make_cache(*outcomes, clock=None, **kwargs):
@@ -108,6 +115,7 @@ def make_cache(*outcomes, clock=None, **kwargs):
 # ---------------------------------------------------------------------------
 # Basic hit / miss
 # ---------------------------------------------------------------------------
+
 
 def test_second_lookup_is_a_hit_and_skips_the_resolver():
     cache, stub, _ = make_cache(a_result())
@@ -143,11 +151,16 @@ def test_different_record_types_are_cached_separately():
 # TTL rules
 # ---------------------------------------------------------------------------
 
+
 def test_positive_ttl_is_minimum_over_all_answers():
-    result = make_result("www.github.com", RecordType.A, answers=[
-        rr("www.github.com", RecordType.CNAME, 3600, "github.com"),
-        rr("github.com", RecordType.A, 60, "20.207.73.82"),
-    ])
+    result = make_result(
+        "www.github.com",
+        RecordType.A,
+        answers=[
+            rr("www.github.com", RecordType.CNAME, 3600, "github.com"),
+            rr("github.com", RecordType.A, 60, "20.207.73.82"),
+        ],
+    )
     assert positive_ttl(result) == 60
     assert cache_ttl(result) == 60
 
@@ -156,9 +169,9 @@ def test_entry_expires_when_ttl_runs_out():
     cache, stub, clock = make_cache(a_result(ttl=60))
     cache.resolve("example.com", RecordType.A)
     clock.advance(59)
-    cache.resolve("example.com", RecordType.A)   # still a hit
+    cache.resolve("example.com", RecordType.A)  # still a hit
     assert stub.calls == 1
-    clock.advance(1)                              # exactly 60s -> expired
+    clock.advance(1)  # exactly 60s -> expired
     cache.resolve("example.com", RecordType.A)
     assert stub.calls == 2
 
@@ -196,6 +209,7 @@ def test_hit_has_zero_hops_and_empty_trace_and_does_not_change_stored_copy():
 # Negative caching
 # ---------------------------------------------------------------------------
 
+
 def test_negative_ttl_uses_soa_minimum_when_smaller():
     result = nxdomain_result(soa_ttl=900, minimum=300)
     assert negative_ttl(result) == 300
@@ -216,8 +230,12 @@ def test_nxdomain_is_cached_and_counted_as_negative_hit():
 
 
 def test_nodata_is_cached():
-    nodata = make_result("github.com", RecordType.AAAA, rcode=ResponseCode.NOERROR,
-                         authority=[rr("github.com", RecordType.SOA, 900, soa_hex(86400))])
+    nodata = make_result(
+        "github.com",
+        RecordType.AAAA,
+        rcode=ResponseCode.NOERROR,
+        authority=[rr("github.com", RecordType.SOA, 900, soa_hex(86400))],
+    )
     cache, stub, clock = make_cache(nodata)
     cache.resolve("github.com", RecordType.AAAA)
     clock.advance(899)
@@ -237,9 +255,13 @@ def test_negative_answer_without_soa_is_not_cached():
 
 
 def test_nxdomain_after_cname_uses_min_of_the_cnames():
-    result = make_result("alias.com", RecordType.A, rcode=ResponseCode.NXDOMAIN,
-                         answers=[rr("alias.com", RecordType.CNAME, 120, "gone.com")],
-                         authority=[rr("com", RecordType.SOA, 900, soa_hex(900))])
+    result = make_result(
+        "alias.com",
+        RecordType.A,
+        rcode=ResponseCode.NXDOMAIN,
+        answers=[rr("alias.com", RecordType.CNAME, 120, "gone.com")],
+        authority=[rr("com", RecordType.SOA, 900, soa_hex(900))],
+    )
     assert cache_ttl(result) == 120
 
 
@@ -247,8 +269,10 @@ def test_nxdomain_after_cname_uses_min_of_the_cnames():
 # Errors are never cached
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("error", [ResolutionError("all servers failed"),
-                                   ValueError("bad name")])
+
+@pytest.mark.parametrize(
+    "error", [ResolutionError("all servers failed"), ValueError("bad name")]
+)
 def test_errors_are_raised_and_never_cached(error):
     cache, stub, _ = make_cache(error, a_result())
     with pytest.raises(type(error)):
@@ -263,17 +287,18 @@ def test_errors_are_raised_and_never_cached(error):
 # LRU limit
 # ---------------------------------------------------------------------------
 
+
 def test_least_recently_used_entry_is_evicted():
     cache, stub, _ = make_cache(a_result(ttl=600), max_entries=2)
     cache.resolve("a.com", RecordType.A)
     cache.resolve("b.com", RecordType.A)
-    cache.resolve("a.com", RecordType.A)        # touch a -> b is now oldest
-    cache.resolve("c.com", RecordType.A)        # pushes b out
+    cache.resolve("a.com", RecordType.A)  # touch a -> b is now oldest
+    cache.resolve("c.com", RecordType.A)  # pushes b out
     assert cache.evictions == 1
     assert stub.calls == 3
-    cache.resolve("a.com", RecordType.A)        # still cached
+    cache.resolve("a.com", RecordType.A)  # still cached
     assert stub.calls == 3
-    cache.resolve("b.com", RecordType.A)        # was evicted -> miss
+    cache.resolve("b.com", RecordType.A)  # was evicted -> miss
     assert stub.calls == 4
 
 
@@ -286,11 +311,12 @@ def test_max_entries_must_be_positive():
 # stats, log, CSV, flush
 # ---------------------------------------------------------------------------
 
+
 def test_stats_counts_and_hit_ratio():
     cache, _, _ = make_cache(a_result())
-    cache.resolve("example.com", RecordType.A)   # miss
-    cache.resolve("example.com", RecordType.A)   # hit
-    cache.resolve("example.com", RecordType.A)   # hit
+    cache.resolve("example.com", RecordType.A)  # miss
+    cache.resolve("example.com", RecordType.A)  # hit
+    cache.resolve("example.com", RecordType.A)  # hit
     stats = cache.stats()
     assert stats["hits"] == 2 and stats["misses"] == 1
     assert stats["lookups"] == 3 and stats["size"] == 1
@@ -325,7 +351,7 @@ def test_flush_and_clear():
     cache.flush("A.com.")
     assert len(cache) == 1
     cache.resolve("a.com", RecordType.A)
-    assert stub.calls == 3                       # a.com had to be fetched again
+    assert stub.calls == 3  # a.com had to be fetched again
     cache.clear()
     assert len(cache) == 0
 
@@ -335,6 +361,7 @@ def test_flush_and_clear():
 # the fake network from tests/test_resolver.py (so real wire-format parsing,
 # real SOA hex, real traces). Skipped automatically if that file isn't found.
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fake_net():
@@ -350,12 +377,12 @@ def test_e2e_second_lookup_sends_no_queries(fake_net):
     second = cache.resolve("Example.COM.", RecordType.A)
 
     assert queries_after_miss == 3 and len(first.trace) == 3
-    assert len(net.log) == queries_after_miss      # the hit sent nothing
+    assert len(net.log) == queries_after_miss  # the hit sent nothing
     assert second.trace == [] and second.addresses == first.addresses
 
 
 def test_e2e_real_a_record_expires_after_its_ttl(fake_net):
-    net = fake_net.standard_network()               # example.com A has ttl=60
+    net = fake_net.standard_network()  # example.com A has ttl=60
     clock = FakeClock()
     cache = CachingResolver(resolver=net.resolver(), clock=clock)
 
@@ -365,7 +392,7 @@ def test_e2e_real_a_record_expires_after_its_ttl(fake_net):
     assert len(net.log) == 3
     clock.advance(1)
     cache.resolve("example.com", RecordType.A)
-    assert len(net.log) > 3                        # cold walk again
+    assert len(net.log) > 3  # cold walk again
 
 
 def test_e2e_nxdomain_uses_real_soa_minimum(fake_net):
@@ -401,6 +428,7 @@ def test_e2e_resolution_failure_is_not_cached(fake_net):
 # ---------------------------------------------------------------------------
 # Delegation cache (NS + glue): unit tests
 # ---------------------------------------------------------------------------
+
 
 def test_delegation_cache_store_and_expire():
     clock = FakeClock()
@@ -446,9 +474,12 @@ def test_default_caching_resolver_has_delegation_cache():
 # Delegation cache: end-to-end on Ayush's real resolver + fake network
 # ---------------------------------------------------------------------------
 
+
 def make_delegating(fake_net, net, clock):
     resolver = DelegatingResolver(
-        root_servers=[fake_net.ROOT], udp=net.udp, tcp=net.tcp,
+        root_servers=[fake_net.ROOT],
+        udp=net.udp,
+        tcp=net.tcp,
         selector=resolver_mod.ServerSelector(rng=random.Random(0)),
         delegation_cache=DelegationCache(clock=clock),
     )
@@ -459,13 +490,19 @@ def test_e2e_new_name_in_known_zone_skips_root_and_tld(fake_net):
     net, clock = fake_net.standard_network(), FakeClock()
     cache, _ = make_delegating(fake_net, net, clock)
 
-    cache.resolve("example.com", RecordType.A)          # cold: root, com, example.com
-    assert [ip for _, ip, _, _ in net.log] == [fake_net.ROOT, fake_net.COM, fake_net.EXAMPLE]
+    cache.resolve("example.com", RecordType.A)  # cold: root, com, example.com
+    assert [ip for _, ip, _, _ in net.log] == [
+        fake_net.ROOT,
+        fake_net.COM,
+        fake_net.EXAMPLE,
+    ]
     before = len(net.log)
 
-    result = cache.resolve("nothere.example.com", RecordType.A)   # NEW name, same zone
+    result = cache.resolve("nothere.example.com", RecordType.A)  # NEW name, same zone
     assert result.rcode == ResponseCode.NXDOMAIN
-    assert [ip for _, ip, _, _ in net.log[before:]] == [fake_net.EXAMPLE]   # 1 query, not 3
+    assert [ip for _, ip, _, _ in net.log[before:]] == [
+        fake_net.EXAMPLE
+    ]  # 1 query, not 3
     assert cache.log[-1].start_zone == "example.com"
     assert cache.log[-1].queries_sent == 1
     assert cache.stats()["delegation_hits"] == 1
@@ -477,14 +514,14 @@ def test_e2e_new_zone_under_known_tld_skips_root(fake_net):
 
     cache.resolve("example.com", RecordType.A)
     before = len(net.log)
-    result = cache.resolve("other.com", RecordType.A)   # different zone, same .com
+    result = cache.resolve("other.com", RecordType.A)  # different zone, same .com
     assert result.rcode == ResponseCode.NXDOMAIN
-    assert [ip for _, ip, _, _ in net.log[before:]] == [fake_net.COM]       # root skipped
+    assert [ip for _, ip, _, _ in net.log[before:]] == [fake_net.COM]  # root skipped
     assert cache.log[-1].start_zone == "com"
 
 
 def test_e2e_delegation_expires_and_walk_restarts_at_root(fake_net):
-    net, clock = fake_net.standard_network(), FakeClock()   # NS / glue TTL is 300
+    net, clock = fake_net.standard_network(), FakeClock()  # NS / glue TTL is 300
     cache, _ = make_delegating(fake_net, net, clock)
 
     cache.resolve("example.com", RecordType.A)
@@ -492,28 +529,37 @@ def test_e2e_delegation_expires_and_walk_restarts_at_root(fake_net):
     before = len(net.log)
     cache.resolve("again.example.com", RecordType.A)
     assert [ip for _, ip, _, _ in net.log[before:]] == [
-        fake_net.ROOT, fake_net.COM, fake_net.EXAMPLE]
+        fake_net.ROOT,
+        fake_net.COM,
+        fake_net.EXAMPLE,
+    ]
     assert cache.log[-1].start_zone == "."
 
 
 def test_e2e_stale_delegation_falls_back_to_a_cold_walk(fake_net):
     net, clock = fake_net.standard_network(), FakeClock()
     cache, resolver = make_delegating(fake_net, net, clock)
-    cache.resolve("example.com", RecordType.A)           # learns example.com -> EXAMPLE
+    cache.resolve("example.com", RecordType.A)  # learns example.com -> EXAMPLE
 
     # example.com moves to a new server; the old one goes dead
     new_server = "3.0.0.2"
     net.servers[fake_net.EXAMPLE] = lambda q, t: None
     net.servers[new_server] = fake_net.example_server
     net.servers[fake_net.COM] = lambda q, t: (
-        dict(authority=[fake_net.rr("example.com", RecordType.NS, "ns2.example.com")],
-             additional=[fake_net.rr("ns2.example.com", RecordType.A, new_server)])
-        if fake_net.is_subdomain(q, "example.com") else fake_net.com_server(q, t))
+        dict(
+            authority=[fake_net.rr("example.com", RecordType.NS, "ns2.example.com")],
+            additional=[fake_net.rr("ns2.example.com", RecordType.A, new_server)],
+        )
+        if fake_net.is_subdomain(q, "example.com")
+        else fake_net.com_server(q, t)
+    )
 
     result = cache.resolve("later.example.com", RecordType.A)
     assert result.rcode == ResponseCode.NXDOMAIN
-    assert cache.log[-1].queries_sent == 4               # 1 wasted + root, com, new server
-    assert resolver.delegation_cache.live()["example.com"] == [("ns2.example.com", (new_server,))]
+    assert cache.log[-1].queries_sent == 4  # 1 wasted + root, com, new server
+    assert resolver.delegation_cache.live()["example.com"] == [
+        ("ns2.example.com", (new_server,))
+    ]
 
 
 def test_e2e_plain_resolver_gets_answer_cache_only(fake_net):
@@ -531,7 +577,7 @@ def test_e2e_clear_empties_delegations_too_unless_told_not_to(fake_net):
     net, clock = fake_net.standard_network(), FakeClock()
     cache, resolver = make_delegating(fake_net, net, clock)
     cache.resolve("example.com", RecordType.A)
-    assert len(resolver.delegation_cache) == 2           # com, example.com
+    assert len(resolver.delegation_cache) == 2  # com, example.com
     cache.clear(include_delegations=False)
     assert len(resolver.delegation_cache) == 2
     cache.clear()

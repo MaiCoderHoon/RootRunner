@@ -8,13 +8,18 @@ from concurrent.futures import ThreadPoolExecutor
 
 from src.dns_resolver.cache import CachingResolver
 from src.dns_resolver.parser import DNSParser, RecordType, ResponseCode, format_rdata
-from src.dns_resolver.resolver import ResolutionError, ResourceRecord, ResolutionResult, build_query
+from src.dns_resolver.resolver import (
+    ResolutionError,
+    ResourceRecord,
+    ResolutionResult,
+    build_query,
+)
 from src.dns_resolver.server import Server, build_reply, read_question, serve_socket
 
 
 class Stub:
     def __init__(self, results):
-        self.results = results   # name -> result or exception
+        self.results = results  # name -> result or exception
         self.calls = 0
 
     def resolve(self, name, rtype=RecordType.A):
@@ -30,12 +35,25 @@ def rr(name, t, ttl, data):
 
 
 def result(name, answers=(), rcode=ResponseCode.NOERROR, qtype=RecordType.A):
-    return ResolutionResult(qname=name, qtype=qtype, rcode=rcode, answers=list(answers),
-                            authority=[], cname_chain=[name], hops=3, trace=[])
+    return ResolutionResult(
+        qname=name,
+        qtype=qtype,
+        rcode=rcode,
+        answers=list(answers),
+        authority=[],
+        cname_chain=[name],
+        hops=3,
+        trace=[],
+    )
 
 
-WWW = result("www.github.com", [rr("www.github.com", RecordType.CNAME, 3600, "github.com"),
-                                rr("github.com", RecordType.A, 60, "20.207.73.82")])
+WWW = result(
+    "www.github.com",
+    [
+        rr("www.github.com", RecordType.CNAME, 3600, "github.com"),
+        rr("github.com", RecordType.A, 60, "20.207.73.82"),
+    ],
+)
 
 
 def make_server(results):
@@ -46,22 +64,31 @@ def make_server(results):
 def parse(reply):
     p = DNSParser()
     header, qs, ans, auth, add = p.parse_message(reply)
-    shown = [(a.name, a.type, a.ttl, format_rdata(a.type, a.rdata, reply, a.rdata_offset)) for a in ans]
+    shown = [
+        (a.name, a.type, a.ttl, format_rdata(a.type, a.rdata, reply, a.rdata_offset))
+        for a in ans
+    ]
     return header, qs, shown
 
 
 def test_cname_and_a_come_back_correctly():
     srv, _ = make_server({"www.github.com": WWW})
-    header, qs, ans = parse(srv.handle(build_query("www.github.com", RecordType.A, 1234)))
+    header, qs, ans = parse(
+        srv.handle(build_query("www.github.com", RecordType.A, 1234))
+    )
     assert header.id == 1234 and header.qr and header.ra
     assert header.rcode == ResponseCode.NOERROR
     assert qs[0].qname == "www.github.com"
-    assert ans == [("www.github.com", RecordType.CNAME, 3600, "github.com"),
-                   ("github.com", RecordType.A, 60, "20.207.73.82")]
+    assert ans == [
+        ("www.github.com", RecordType.CNAME, 3600, "github.com"),
+        ("github.com", RecordType.A, 60, "20.207.73.82"),
+    ]
 
 
 def test_reply_uses_compression_pointers():
-    reply = build_reply(1, 0, True, "www.github.com", 1, 1, ResponseCode.NOERROR, WWW.answers)
+    reply = build_reply(
+        1, 0, True, "www.github.com", 1, 1, ResponseCode.NOERROR, WWW.answers
+    )
     # answer names should point back into the question instead of repeating it
     assert b"\xc0\x0c" in reply
     assert reply.count(b"\x06github") == 1
@@ -88,7 +115,11 @@ def test_resolver_failure_gives_servfail():
 
 def test_unknown_type_gets_empty_noerror():
     # HTTPS (65) isnt in our RecordType, browsers ask for it all the time
-    q = struct.pack("!HHHHHH", 5, 0x0100, 1, 0, 0, 0) + b"\x06github\x03com\x00" + struct.pack("!HH", 65, 1)
+    q = (
+        struct.pack("!HHHHHH", 5, 0x0100, 1, 0, 0, 0)
+        + b"\x06github\x03com\x00"
+        + struct.pack("!HH", 65, 1)
+    )
     srv, stub = make_server({})
     reply = srv.handle(q)
     qid, flags, qd, an = struct.unpack("!HHHH", reply[:8])
@@ -97,7 +128,11 @@ def test_unknown_type_gets_empty_noerror():
 
 
 def test_aaaa_answer():
-    res = result("x.com", [rr("x.com", RecordType.AAAA, 300, "2001:db8:0:0:0:0:0:1")], qtype=RecordType.AAAA)
+    res = result(
+        "x.com",
+        [rr("x.com", RecordType.AAAA, 300, "2001:db8:0:0:0:0:0:1")],
+        qtype=RecordType.AAAA,
+    )
     srv, _ = make_server({"x.com": res})
     _, _, ans = parse(srv.handle(build_query("x.com", RecordType.AAAA, 3)))
     assert ans[0][1] == RecordType.AAAA and ans[0][3] == "2001:db8:0:0:0:0:0:1"

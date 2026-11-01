@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # TTL rules
 # ---------------------------------------------------------------------------
 
+
 def positive_ttl(result):
     """Positive answer: cache only as long as the SHORTEST-lived record.
 
@@ -83,27 +84,29 @@ def cache_ttl(result):
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CacheEntry:
-    result: object      # the ResolutionResult exactly as the resolver gave it
-    stored_at: float    # clock() when we stored it
-    expires_at: float   # clock() value at which it stops being valid
-    negative: bool      # True for NXDOMAIN / NODATA
+    result: object  # the ResolutionResult exactly as the resolver gave it
+    stored_at: float  # clock() when we stored it
+    expires_at: float  # clock() value at which it stops being valid
+    negative: bool  # True for NXDOMAIN / NODATA
 
 
 @dataclass
 class LookupLogEntry:
     """One line per lookup. This is what Aryaman's experiments will read."""
-    timestamp: float       # wall-clock time of the lookup (time.time())
+
+    timestamp: float  # wall-clock time of the lookup (time.time())
     name: str
     qtype: str
-    outcome: str           # HIT / NEGATIVE_HIT / MISS / ERROR
+    outcome: str  # HIT / NEGATIVE_HIT / MISS / ERROR
     latency_ms: float
-    queries_sent: int      # 0 on a hit, len(result.trace) on a miss
-    start_zone: str        # zone of the first query: '.' = root, 'com', ... ; '' on a hit
+    queries_sent: int  # 0 on a hit, len(result.trace) on a miss
+    start_zone: str  # zone of the first query: '.' = root, 'com', ... ; '' on a hit
     hops: int
     rcode: str
-    ttl: int               # ttl cached (miss) or ttl remaining (hit)
+    ttl: int  # ttl cached (miss) or ttl remaining (hit)
 
 
 LOG_FIELDS = [f.name for f in fields(LookupLogEntry)]
@@ -112,6 +115,7 @@ LOG_FIELDS = [f.name for f in fields(LookupLogEntry)]
 # ---------------------------------------------------------------------------
 # Delegation cache: remember NS + glue so new names can skip the root / TLD hops
 # ---------------------------------------------------------------------------
+
 
 class DelegationCache:
     """zone -> nameservers, each entry valid for the shortest TTL of its records.
@@ -126,11 +130,11 @@ class DelegationCache:
             raise ValueError("max_entries must be at least 1")
         self.max_entries = max_entries
         self.clock = clock
-        self._entries = OrderedDict()   # zone -> (expires_at, nameservers)
+        self._entries = OrderedDict()  # zone -> (expires_at, nameservers)
         self.evictions = 0
 
     def store(self, zone, nameservers, ttl):
-        if ttl <= 0 or not zone:        # TTL 0 = don't cache; root hints are fixed
+        if ttl <= 0 or not zone:  # TTL 0 = don't cache; root hints are fixed
             return
         servers = [(name, tuple(ips)) for name, ips in nameservers]
         self._entries[zone] = (self.clock() + ttl, servers)
@@ -174,9 +178,12 @@ class DelegatingResolver(IterativeResolver):
 
     def __init__(self, *args, delegation_cache=None, clock=time.monotonic, **kwargs):
         super().__init__(*args, **kwargs)
-        self.delegation_cache = (delegation_cache if delegation_cache is not None
-                                 else DelegationCache(clock=clock))
-        self._learned = {}   # zone -> (nameservers, ttl) seen during the current walk
+        self.delegation_cache = (
+            delegation_cache
+            if delegation_cache is not None
+            else DelegationCache(clock=clock)
+        )
+        self._learned = {}  # zone -> (nameservers, ttl) seen during the current walk
 
     def resolve(self, domain, record_type=RecordType.A):
         qname = normalize_name(domain)
@@ -201,13 +208,17 @@ class DelegatingResolver(IterativeResolver):
             except ResolutionError as second_error:
                 second_error.trace = first_error.trace + second_error.trace
                 raise
-            result.trace = first_error.trace + result.trace   # count the wasted queries too
+            result.trace = (
+                first_error.trace + result.trace
+            )  # count the wasted queries too
             return result
 
     def _walk(self, qname, record_type, seeded):
         ctx = _Context(self.max_hops, self.root_servers)
         for zone, nameservers in seeded.items():
-            ctx.delegations[zone] = [_NameServer(name, list(ips)) for name, ips in nameservers]
+            ctx.delegations[zone] = [
+                _NameServer(name, list(ips)) for name, ips in nameservers
+            ]
         self._learned = {}
         try:
             result = self._resolve(ctx, qname, record_type)
@@ -225,24 +236,36 @@ class DelegatingResolver(IterativeResolver):
             child_zone, nameservers = referral
             # copy NOW: the resolver later fills in IPs of glueless servers in place
             copy = [(ns.name, tuple(ns.ips)) for ns in nameservers]
-            self._learned[child_zone] = (copy, self._delegation_ttl(resp, child_zone, nameservers))
+            self._learned[child_zone] = (
+                copy,
+                self._delegation_ttl(resp, child_zone, nameservers),
+            )
         return referral
 
     @staticmethod
     def _delegation_ttl(resp, child_zone, nameservers):
         """Shortest TTL among the NS records and the glue A records we kept."""
-        ttls = [r.ttl for r in resp.authority
-                if r.type == RecordType.NS and normalize_name(r.name) == child_zone]
+        ttls = [
+            r.ttl
+            for r in resp.authority
+            if r.type == RecordType.NS and normalize_name(r.name) == child_zone
+        ]
         glue_names = {ns.name for ns in nameservers if ns.ips}
-        ttls += [r.ttl for r in resp.additional
-                 if r.type == RecordType.A and normalize_name(r.name) in glue_names]
+        ttls += [
+            r.ttl
+            for r in resp.additional
+            if r.type == RecordType.A and normalize_name(r.name) in glue_names
+        ]
         return min(ttls) if ttls else 0
 
 
 def _start_zone(trace):
     """Zone of the first query of the final attempt ('.' = root, '' = no queries)."""
-    firsts = [s for s in trace
-              if getattr(s, "depth", None) == 0 and getattr(s, "hop", None) == 1]
+    firsts = [
+        s
+        for s in trace
+        if getattr(s, "depth", None) == 0 and getattr(s, "hop", None) == 1
+    ]
     return (firsts[-1].zone or ".") if firsts else ""
 
 
@@ -250,14 +273,16 @@ def _start_zone(trace):
 # The cache
 # ---------------------------------------------------------------------------
 
+
 class CachingResolver:
     def __init__(self, resolver=None, max_entries=1000, clock=time.monotonic):
         if max_entries < 1:
             raise ValueError("max_entries must be at least 1")
         # no resolver given -> answer cache AND delegation cache. Pass a plain
         # IterativeResolver() to get the answer cache only.
-        self.resolver = (resolver if resolver is not None
-                         else DelegatingResolver(clock=clock))
+        self.resolver = (
+            resolver if resolver is not None else DelegatingResolver(clock=clock)
+        )
         self.max_entries = max_entries
         # clock is injectable so tests can fake time instead of sleeping.
         # monotonic = never jumps backwards when the system clock changes.
@@ -269,8 +294,10 @@ class CachingResolver:
         self.misses = 0
         self.errors = 0
         self.evictions = 0
-        self.delegation_hits = 0     # misses that started below the root (delegation cache helped)
-        self.log = []                # list of LookupLogEntry
+        self.delegation_hits = (
+            0  # misses that started below the root (delegation cache helped)
+        )
+        self.log = []  # list of LookupLogEntry
 
     # -- main entry point ---------------------------------------------------
 
@@ -314,12 +341,15 @@ class CachingResolver:
         ttl = cache_ttl(result)
         if ttl > 0:  # TTL 0 means "do not cache"
             stored_at = self.clock()
-            self._store(key, CacheEntry(
-                result=result,
-                stored_at=stored_at,
-                expires_at=stored_at + ttl,
-                negative=not result.answers,
-            ))
+            self._store(
+                key,
+                CacheEntry(
+                    result=result,
+                    stored_at=stored_at,
+                    expires_at=stored_at + ttl,
+                    negative=not result.answers,
+                ),
+            )
         start_zone = _start_zone(result.trace)
         if start_zone not in ("", "."):
             self.delegation_hits += 1
@@ -374,8 +404,14 @@ class CachingResolver:
             ttl=ttl,
         )
         self.log.append(row)
-        logger.info("%s %s %s %.2fms queries=%d",
-                    outcome, key[0], key[1].name, latency_ms, queries)
+        logger.info(
+            "%s %s %s %.2fms queries=%d",
+            outcome,
+            key[0],
+            key[1].name,
+            latency_ms,
+            queries,
+        )
 
     # -- stats, logging, housekeeping ----------------------------------------
 
@@ -417,8 +453,11 @@ class CachingResolver:
     def flush(self, domain, qtype=None):
         """Remove one name from the cache (one qtype, or all if qtype is None)."""
         name = normalize_name(domain)
-        for key in [k for k in self._cache if k[0] == name
-                    and (qtype is None or k[1] == RecordType(qtype))]:
+        for key in [
+            k
+            for k in self._cache
+            if k[0] == name and (qtype is None or k[1] == RecordType(qtype))
+        ]:
             del self._cache[key]
 
     def _purge_expired(self):
