@@ -1,24 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="360" viewBox="0 0 1400 360" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
 <title id="title">RootRunner</title>
-<desc id="desc">Minimal RootRunner wordmark with a folded ribbon R symbol in white and purple.</desc>
+<desc id="desc">RootRunner text wordmark, with Root in white and Runner in purple.</desc>
 <defs>
-  <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#ffffff"/><stop offset=".52" stop-color="#d9d9df"/><stop offset="1" stop-color="#777780"/>
-  </linearGradient>
   <linearGradient id="purple" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#b64cff"/><stop offset="1" stop-color="#842be0"/>
+    <stop offset="0" stop-color="#bd55ff"/>
+    <stop offset="1" stop-color="#8e35e8"/>
   </linearGradient>
 </defs>
-<rect width="1400" height="360" fill="#050506"/>
-<!-- Folded ribbon R mark -->
-<g transform="translate(78 48)" stroke-linejoin="round">
-  <path d="M32 67 118 17Q130 10 130 24V50Q130 59 122 64L77 90 120 114Q132 121 132 135V157Q132 170 120 163L43 119Q27 110 27 94V82Q27 73 32 67Z" fill="url(#silver)"/>
-  <path d="M32 67 118 17Q130 10 130 24V50Q130 59 122 64L77 90 43 70Q34 65 32 67Z" fill="#fff"/>
-  <path d="M77 90 120 114Q132 121 132 135V157Q132 170 120 163L43 119Q27 110 27 94V82Q27 73 32 67Z" fill="url(#silver)"/>
-  <path d="M45 83 77 101 98 89 83 80 68 88 55 81Z" fill="#09090b"/>
-  <path d="M77 101 119 77Q132 69 145 76L157 83 93 120 77 111Z" fill="#aeb0b8" opacity=".72"/>
-  <path d="M93 120 157 83 157 108Q157 119 147 125L82 163Q70 170 70 156V132Z" fill="#fff"/>
-</g>
-<path d="M340 70V290" stroke="#777780" stroke-width="2"/>
-<text x="405" y="224" fill="#f8f8fa" font-family="Inter, Arial, Helvetica, sans-serif" font-size="126" font-weight="700" letter-spacing="-5">Root<tspan fill="url(#purple)">Runner</tspan></text>
+<rect width="1200" height="260" fill="#050506"/>
+<text x="600" y="174" text-anchor="middle" fill="#f8f8fa" font-family="Inter, Arial, Helvetica, sans-serif" font-size="142" font-weight="750" letter-spacing="-5">Root<tspan fill="url(#purple)">Runner</tspan></text>
 </svg>
