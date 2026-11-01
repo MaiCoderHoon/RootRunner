@@ -12,7 +12,7 @@ Implements:
 
 import struct
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple
 from enum import IntEnum
 
 
