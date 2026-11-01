@@ -22,7 +22,6 @@ from src.dns_resolver.parser import (
     DNSParser,
     DNSHeader,
     DNSQuestion,
-    DNSRecord,
     RecordType,
     RecordClass,
     ResponseCode,
@@ -47,9 +46,9 @@ class TestDNSHeader:
         header = parser._parse_header()
 
         assert header.id == 1
-        assert header.qr == False  # Query
+        assert header.qr is False  # Query
         assert header.opcode == 0
-        assert header.rd == True  # Recursion desired
+        assert header.rd is True  # Recursion desired
         assert header.rcode == ResponseCode.NOERROR
         assert header.qdcount == 1
         assert header.ancount == 0
@@ -65,8 +64,8 @@ class TestDNSHeader:
 
         assert header.id == 42
         assert header.qr is True  # Response
-        assert header.rd == True
-        assert header.ra == True
+        assert header.rd is True
+        assert header.ra is True
         assert header.rcode == ResponseCode.NOERROR
         assert header.qdcount == 1
         assert header.ancount == 1
@@ -339,10 +338,10 @@ class TestRealDNSResponses:
         assert len(answers) >= 1
 
         for ans in answers:
-            print(
-                f"{ans.name} {ans.ttl} IN {ans.type.name} "
-                f"{format_rdata(ans.type, ans.rdata, packet=data, rdata_offset=ans.rdata_offset)}"
+            formatted = format_rdata(
+                ans.type, ans.rdata, packet=data, rdata_offset=ans.rdata_offset
             )
+            print(f"{ans.name} {ans.ttl} IN {ans.type.name} {formatted}")
 
     def test_parse_google_aaaa_response(self):
         """Parse real response for google.com AAAA query"""
