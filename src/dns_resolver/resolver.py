@@ -487,7 +487,10 @@ class IterativeResolver:
     def _resolve_one_glueless(
         self, ctx: _Context, nameservers: List[_NameServer]
     ) -> bool:
-        """Resolve the address of the next glueless NS. Returns False if none are left."""
+        """Resolve the next glueless NS address.
+
+        Returns False if none are left.
+        """
         for ns in nameservers:
             if ns.ips or ns.lookup_failed or not ns.name:
                 continue
@@ -658,7 +661,8 @@ class IterativeResolver:
 
     @staticmethod
     def _decode(record: DNSRecord, packet: bytes) -> ResourceRecord:
-        # Always pass packet + offset: NS/CNAME/MX rdata may contain compression pointers
+        # Always pass packet + offset: NS/CNAME/MX rdata may contain
+        # compression pointers.
         try:
             data = format_rdata(
                 record.type,
@@ -710,7 +714,8 @@ def cname_chain_names(cname_records: List[ResourceRecord]) -> List[str]:
 
 
 def _tc_bit_set(packet: bytes) -> bool:
-    # Checked on raw bytes: a truncated packet may be cut mid-record and fail a full parse
+    # Check raw bytes: a truncated packet may be cut mid-record and fail
+    # a full parse.
     return len(packet) >= 3 and bool(packet[2] & 0x02)
 
 
@@ -776,7 +781,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         _print_trace(result.trace)
         print()
     print(
-        f";; {result.qname} {result.qtype.name}: {result.rcode.name}, {result.hops} hop(s)"
+        (
+            f";; {result.qname} {result.qtype.name}: "
+            f"{result.rcode.name}, {result.hops} hop(s)"
+        )
     )
     for r in result.answers:
         print(f"{r.name:<30} {r.ttl:<7} {r.type.name:<6} {r.data}")
