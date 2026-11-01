@@ -118,21 +118,13 @@ github.com                     60      A      20.207.73.82
 
 Add `--trace` to inspect the queried nameservers, zones, outcomes, and round-trip times.
 
-### Follow a lookup
+### The DNS journey
 
-```mermaid
-flowchart TD
-    Q(["Query: github.com / A"]) --> C{"Answer cache hit?"}
-    C -- Yes --> H(["Return cached answer"])
-    C -- No --> R["Query a root nameserver"]
-    R --> T["Follow the .com referral"]
-    T --> A["Query github.com authoritative nameserver"]
-    A --> V["Process answer or CNAME"]
-    V --> S["Cache result using TTL"]
-    S --> O(["Return result"])
-```
+<p align="center">
+  <img src="assets/dns-resolution-journey.svg" alt="RootRunner DNS journey: client query, answer cache, root server, TLD server, authoritative server, and TTL cache" width="100%">
+</p>
 
-A later lookup may use the answer cache directly. If only delegation data is cached, the resolver can start at a lower point in the DNS hierarchy rather than repeating every referral step.
+A cold lookup follows referrals from root toward the authoritative zone. A warm answer-cache lookup can return immediately. If only delegation data is cached, RootRunner may begin lower in the DNS hierarchy rather than repeating every referral step.
 
 ---
 
@@ -435,35 +427,36 @@ RootRunner has five repeatable experiments and a real-world validation run. The 
 
 ### Experiment plots
 
-<details open>
-<summary><strong>1 · Cold vs. warm lookup latency</strong></summary>
+The plots below are generated from the experiment outputs committed in this repository.
 
-![Cold versus warm lookup latency](experiments/plots/exp1_cold_vs_warm.png)
-</details>
-
-<details>
-<summary><strong>2 · Queries per lookup with delegation caching</strong></summary>
-
-![Queries per lookup](experiments/plots/exp2_queries_per_lookup.png)
-</details>
-
-<details>
-<summary><strong>3 · Cache hit ratio over a replayed trace</strong></summary>
-
-![Cache hit ratio](experiments/plots/exp3_hit_ratio.png)
-</details>
-
-<details>
-<summary><strong>4 · Simulated unavailable nameservers</strong></summary>
-
-![Simulated dead server experiment](experiments/plots/exp4_dead_server.png)
-</details>
-
-<details>
-<summary><strong>5 · Query count compared with dig +trace</strong></summary>
-
-![RootRunner versus dig query counts](experiments/plots/exp5_vs_dig.png)
-</details>
+<table>
+  <tr>
+    <td width="50%">
+      <strong>01 · Cold vs. warm latency</strong><br>
+      <img src="experiments/plots/exp1_cold_vs_warm.png" alt="Cold versus warm lookup latency">
+    </td>
+    <td width="50%">
+      <strong>02 · Delegation cache query count</strong><br>
+      <img src="experiments/plots/exp2_queries_per_lookup.png" alt="Queries per lookup with delegation caching">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>03 · Cache hit ratio</strong><br>
+      <img src="experiments/plots/exp3_hit_ratio.png" alt="Cache hit ratio over a replayed trace">
+    </td>
+    <td width="50%">
+      <strong>04 · Unavailable nameservers</strong><br>
+      <img src="experiments/plots/exp4_dead_server.png" alt="Simulated unavailable nameserver experiment">
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <strong>05 · Query count vs. dig +trace</strong><br>
+      <img src="experiments/plots/exp5_vs_dig.png" alt="RootRunner versus dig trace query counts">
+    </td>
+  </tr>
+</table>
 
 ### Reproduce the experiments
 
