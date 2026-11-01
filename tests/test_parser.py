@@ -161,11 +161,15 @@ class TestDNSRecordTypes:
         assert ip == '142.251.32.46'
 
     def test_parse_aaaa_record(self):
-        """Parse AAAA record (IPv6)"""
-        # Simplified IPv6 parsing
-        # 2607:f8b0:4004:817::200e
-        # This is a placeholder - full IPv6 parsing to come
-        pass
+        """Parse a 16-byte AAAA RDATA value into eight IPv6 groups."""
+        # 2607:f8b0:4004:0817:0000:0000:0000:200e
+        rdata = bytes.fromhex("2607f8b040040817000000000000200e")
+        assert parse_ipv6(rdata) == "2607:f8b0:4004:817:0:0:0:200e"
+
+    def test_format_rdata_aaaa_record(self):
+        """format_rdata should delegate AAAA records to the IPv6 formatter."""
+        rdata = bytes.fromhex("20010db8000000000000000000000001")
+        assert format_rdata(RecordType.AAAA, rdata) == "2001:db8:0:0:0:0:0:1"
 
     def test_invalid_a_record_length(self):
         """A record must be exactly 4 bytes"""
