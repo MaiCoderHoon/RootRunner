@@ -106,7 +106,8 @@ def build_reply(qid, opcode, rd, qname, qtype, qclass, rcode, answers=()):
 
     tc = False
     if len(enc.packet) > MAX_UDP:
-        # too big for udp: send just the question with TC set, client should retry over tcp
+        # Too big for UDP: send just the question with TC set; the client
+        # should retry over TCP.
         enc.packet = enc.packet[:question_end]
         count, tc = 0, True
 
@@ -199,7 +200,8 @@ class Server:
     def say(self, name, qtype, outcome, ms, rcode):
         if self.verbose:
             print(
-                f"{time.strftime('%H:%M:%S')}  {name:40} {qtype:6} {outcome:12} {ms:8.1f} ms  {rcode}"
+                f"{time.strftime('%H:%M:%S')}  {name:40} {qtype:6} "
+                f"{outcome:12} {ms:8.1f} ms  {rcode}"
             )
 
 
